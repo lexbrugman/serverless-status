@@ -98,10 +98,3 @@ From then on: PRs get a plan comment, master pushes apply.
 Confirm the certificate from a device that never trusted the old page, then
 repoint your status hostname. Leave any previous monitoring running as a
 free second opinion.
-
-## 8. The watcher
-
-Create three HetrixTools uptime monitors against the finished page — by
-hand, outside OpenTofu, so the dead-man's switch shares no blast radius with
-what it watches. Its free tier requires a login every 90 days: set a
-recurring 60-day calendar reminder now, before the reason is forgotten.

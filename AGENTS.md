@@ -149,9 +149,6 @@ Named so they are known gaps rather than surprises.
 - `archive_file` zips the handler with no guarantee it imports under the
   real runtime. The integration job covers this, and is the reason it
   exists.
-- The HetrixTools watcher is outside OpenTofu and therefore unverified by
-  CI. That is the design — the dead-man's switch must not share a blast
-  radius with what it watches.
 - CloudFront and ACM issuance cannot be validated offline; the apply blocks
   on certificate issuance instead.
 - The page's client-side staleness banner depends on the viewer's clock. A

@@ -30,6 +30,3 @@ The short version:
    as secrets on the protected `production` environment, the two role ARNs
    as `PLAN_ROLE_ARN` / `APPLY_ROLE_ARN` repository variables, and let
    master pushes apply from then on.
-6. **The watcher** — configure HetrixTools monitors against the finished
-   page by hand, outside OpenTofu, and set a recurring 60-day calendar
-   reminder for its 90-day login requirement.

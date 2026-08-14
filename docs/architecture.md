@@ -1,20 +1,19 @@
 # Architecture
 
 A serverless status page on a custom domain, free-tier all the way down:
-Grafana Cloud runs the probes, AWS renders and serves the page, HetrixTools
-watches the result from outside.
+Grafana Cloud runs the probes, AWS renders and serves the page.
 
 ```
-Grafana Cloud (free)                AWS (always-free)              External
-┌──────────────────────┐            ┌────────────────────────┐     ┌──────────┐
-│ Synthetic Monitoring │            │ EventBridge Scheduler  │     │ Hetrix   │
-│  https · ping · smtp │            │        │ 1/min         │     │ Tools    │
-│         │            │  metrics   │        ▼               │     │ (manual, │
-│         ▼            │  read      │     Lambda ──► DynamoDB│     │  outside │
-│   Prometheus  ───────┼───────────►│        │       history │     │  Tofu)   │
-└──────────────────────┘            │        ▼               │     │    │     │
-                                    │       S3 ──► CloudFront│◄────┼────┘     │
-                                    │              + ACM     │     └──────────┘
+Grafana Cloud (free)                AWS (always-free)
+┌──────────────────────┐            ┌────────────────────────┐
+│ Synthetic Monitoring │            │ EventBridge Scheduler  │
+│  https · ping · smtp │            │        │ 1/min         │
+│         │            │  metrics   │        ▼               │
+│         ▼            │  read      │     Lambda ──► DynamoDB│
+│   Prometheus  ───────┼───────────►│        │       history │
+└──────────────────────┘            │        ▼               │
+                                    │       S3 ──► CloudFront│
+                                    │              + ACM     │
                                     └────────────────────────┘
                                               │
                                        status.example.com
@@ -29,9 +28,6 @@ port 25 (no SMTP).
 
 **Rendering is AWS's.** Lambda, DynamoDB, and CloudFront are always-free
 with no expiry, unlike the 12-month tier.
-
-**The watcher stays outside OpenTofu.** A dead-man's switch must not share a
-blast radius with the thing it watches.
 
 **OpenTofu, not CDK.** The stack spans two control planes, and one apply
 hands a credential from the first to the second (the Synthetic Monitoring
