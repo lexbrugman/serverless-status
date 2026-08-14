@@ -1,0 +1,8 @@
+# Full default severity (style included). Fix findings by restructuring the
+# code; an inline disable needs a genuinely unfixable false positive and a
+# justification, and none exist today. No global suppressions here.
+# Follow sourced files so shared helpers are checked in their callers'
+# context; `# shellcheck source=` directives resolve against these paths.
+external-sources=true
+source-path=SCRIPTDIR
+source-path=.

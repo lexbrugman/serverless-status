@@ -1,0 +1,17 @@
+# Bootstrap scaffolding: the implementation spec this repo is being built
+# from. Its durable content moves to README.md/AGENTS.md/docs/ and the file
+# is then deleted; it never ships, so it is excluded from lint discovery.
+PLAN.md
+
+# Local pinned-tool installs (scripts/dev-tools.sh).
+.tools/
+
+# Rendered preview output (scripts/preview.py).
+out/
+
+# Python
+__pycache__/
+.pytest_cache/
+
+# OpenTofu working directories.
+.terraform/

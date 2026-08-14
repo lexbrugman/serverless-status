@@ -1,0 +1,22 @@
+# Lint + format settings for every Python file in the repo (see
+# scripts/lint.sh). Strict by default: fix findings by restructuring the
+# code; a `# noqa` needs a genuinely unfixable false positive and a
+# justification, and none exist today.
+#
+# target-version mirrors LAMBDA_PYTHON_VERSION in versions.env — the renderer
+# runs on the Lambda runtime — asserted by scripts/check-cross-layer.py.
+target-version = "py314"
+line-length = 100
+
+[lint]
+select = [
+  "E",   # pycodestyle errors
+  "W",   # pycodestyle warnings
+  "F",   # pyflakes
+  "I",   # import sorting
+  "UP",  # pyupgrade
+  "B",   # bugbear
+  "C4",  # comprehensions
+  "SIM", # simplify
+  "RUF", # ruff-native rules
+]

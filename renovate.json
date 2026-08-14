@@ -1,0 +1,81 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "enabledManagers": [
+    "github-actions",
+    "terraform",
+    "custom.regex"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "versions.env entries, each annotated in-file with `# renovate: datasource=... depName=...`",
+      "managerFilePatterns": [
+        "/^versions\\.env$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>\\S+)\\n[A-Z0-9_]+=v?(?<currentValue>.+)\\n"
+      ]
+    }
+  ],
+  "labels": [
+    "dependencies"
+  ],
+  "gitIgnoredAuthors": [
+    "41898282+github-actions[bot]@users.noreply.github.com"
+  ],
+  "dependencyDashboard": false,
+  "prHourlyLimit": 2,
+  "rangeStrategy": "pin",
+  "packageRules": [
+    {
+      "description": "Group GitHub Actions updates",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "groupName": "github-actions"
+    },
+    {
+      "description": "Group pinned-tool updates from versions.env",
+      "matchFileNames": [
+        "versions.env"
+      ],
+      "groupName": "pinned-tools"
+    },
+    {
+      "description": "OpenTofu CLI is pinned in versions.env, not Terraform required_version constraints",
+      "matchManagers": [
+        "terraform"
+      ],
+      "matchPackageNames": [
+        "hashicorp/terraform"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Providers keep their floor range and move through the lock file, not by re-pinning the constraint, so a provider version is single-sourced in the module constraint",
+      "matchManagers": [
+        "terraform"
+      ],
+      "rangeStrategy": "update-lockfile"
+    },
+    {
+      "description": "Regenerate OpenTofu provider lock files so provider versions stay single-sourced in the module constraint",
+      "matchManagers": [
+        "terraform"
+      ],
+      "lockFileMaintenance": {
+        "enabled": true
+      }
+    },
+    {
+      "description": "The Lambda base image ships arch-suffixed and point-release tags; the runtime pin is the plain major.minor line",
+      "matchDepNames": [
+        "public.ecr.aws/lambda/python"
+      ],
+      "allowedVersions": "/^3\\.\\d+$/"
+    }
+  ]
+}
