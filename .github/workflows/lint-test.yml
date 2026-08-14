@@ -28,6 +28,7 @@ jobs:
             ruff
             actionlint
             tofu
+            python
             pytest
 
       - name: Lint the repository

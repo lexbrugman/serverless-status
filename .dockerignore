@@ -1,1 +1,7 @@
-.containerignore
+# The toolbox build consumes only bin/ and versions.env; keep the context
+# to exactly that. One file for both runtimes: podman falls back to
+# .dockerignore when no .containerignore exists, and Docker reads only this
+# name — a .containerignore would be a mirror.
+*
+!bin/
+!versions.env

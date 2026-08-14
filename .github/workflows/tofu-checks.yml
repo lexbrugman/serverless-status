@@ -71,6 +71,7 @@ jobs:
         with:
           tools: |
             tofu
+            python
 
       - name: Verify transmitted dialogue order
         run: scripts/check-smtp-dialogue.py

@@ -79,6 +79,15 @@ if ! grep -q '?ref=master' "${template_tf[@]}"; then
   exit 1
 fi
 
+# The template ships a copy of the tofu installer (the instance becomes a
+# separate repository and cannot reference ours). A copy is a mirror, and
+# every mirror is pinned by a check.
+echo "template installer mirror"
+if ! diff -q bin/install-tofu.sh template/bin/install-tofu.sh >/dev/null; then
+  echo "ERROR: template/bin/install-tofu.sh has drifted from bin/install-tofu.sh — recopy it." >&2
+  exit 1
+fi
+
 echo "cross-layer version mirrors"
 scripts/check-cross-layer.py
 

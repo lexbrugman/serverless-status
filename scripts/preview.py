@@ -8,6 +8,7 @@ Usage: preview.py [--check] [--serve [PORT]] [--out DIR]
 
 import argparse
 import json
+import os
 import re
 import sys
 from datetime import UTC, datetime
@@ -143,9 +144,11 @@ def render_fixture(name: str, now: datetime, version: str | None) -> dict[str, s
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="validate only, write nothing")
-    parser.add_argument("--serve", nargs="?", const=8000, type=int, metavar="PORT")
+    parser.add_argument("--serve", nargs="?", const=0, type=int, metavar="PORT")
     parser.add_argument("--out", default=str(ROOT / "out"), metavar="DIR")
     args = parser.parse_args()
+    if args.check and args.serve is not None:
+        parser.error("--check writes nothing to serve; drop one of the flags")
 
     now = datetime.now(UTC).replace(tzinfo=None)
     out = Path(args.out)
@@ -174,13 +177,16 @@ def main() -> None:
         import functools
         import http.server
 
+        # Inside the toolbox, bootstrap-shell.sh forwards BOOTSTRAP_PUBLISH:
+        # the port must match the published one, and the bind must cover the
+        # container address the mapping forwards to (its loopback would be
+        # unreachable). A bare host run stays loopback-only.
+        publish = os.environ.get("BOOTSTRAP_PUBLISH")
+        port = args.serve or (int(publish) if publish else 8000)
+        bind = "0.0.0.0" if publish else "127.0.0.1"
         handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(out))
-        print(f"serving {out} on http://localhost:{args.serve}/")
-        # All interfaces, not loopback: inside the toolbox the published port
-        # forwards to the container's own address (BOOTSTRAP_PUBLISH=8000
-        # scripts/bootstrap-shell.sh scripts/preview.py --serve). The host
-        # side of that mapping stays loopback-only.
-        http.server.ThreadingHTTPServer(("0.0.0.0", args.serve), handler).serve_forever()
+        print(f"serving {out} on http://localhost:{port}/")
+        http.server.ThreadingHTTPServer((bind, port), handler).serve_forever()
 
 
 if __name__ == "__main__":

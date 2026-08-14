@@ -4,9 +4,11 @@
 # content-addressed tag, so nothing ever lands on the host.
 #
 # The base derives from LAMBDA_PYTHON_VERSION (versions.env): the test suite
-# runs on the same interpreter line the Lambda runtime ships.
-ARG PYTHON_VERSION
-FROM docker.io/library/python:${PYTHON_VERSION}-slim
+# runs on the same interpreter line the Lambda runtime ships. Build via
+# scripts/bootstrap-shell.sh, which supplies the arg; a bare build has no
+# base tag on purpose.
+ARG LAMBDA_PYTHON_VERSION
+FROM docker.io/library/python:${LAMBDA_PYTHON_VERSION}-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -24,9 +26,11 @@ COPY versions.env /tmp/versions.env
 # Every installer runs with every version exported, so the toolbox carries
 # every pinned tool by construction and a new tool is one installer plus a
 # versions.env entry — no list here to forget. The tag already hashes
-# versions.env, so sourcing it cannot go stale. The digest-fallback
-# installers call api.github.com unauthenticated here — a local one-off
-# build, not a shared-runner IP.
+# versions.env, so sourcing it cannot go stale; the price is that any
+# versions.env change rebuilds this layer, which is occasional,
+# Renovate-driven, and accepted for the no-second-list property. The
+# digest-fallback installers call api.github.com unauthenticated here — a
+# local one-off build, not a shared-runner IP.
 RUN set -eux; \
   set -a; . /tmp/versions.env; set +a; \
   for installer in /tmp/bin/install-*.sh; do \

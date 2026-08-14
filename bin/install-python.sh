@@ -18,13 +18,12 @@ if command -v python3 >/dev/null && [[ "$(python3 --version)" == "Python ${LAMBD
   exit 0
 fi
 
+"$(dirname "$0")/install-uv.sh" "$install_dir"
 uv="$install_dir/uv"
-if [[ ! -x "$uv" ]]; then
-  "$(dirname "$0")/install-uv.sh" "$install_dir"
-fi
 
 "$uv" python install "$LAMBDA_PYTHON_VERSION"
-python_bin="$("$uv" python find "$LAMBDA_PYTHON_VERSION")"
+# --system: without it, find prefers any virtual environment near the
+# caller's working directory over the managed interpreter just installed.
+python_bin="$("$uv" python find --system "$LAMBDA_PYTHON_VERSION")"
 mkdir -p "$install_dir"
 ln -sf "$python_bin" "$install_dir/python3"
-ln -sf "$python_bin" "$install_dir/python"

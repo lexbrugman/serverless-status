@@ -7,6 +7,12 @@ set -euo pipefail
 install_dir="${1:?usage: install-uv.sh INSTALL_DIR [ARCH]}"
 requested_arch="${2:-$(uname -m)}"
 
+# Idempotent: the Python-based installers call this to bootstrap uv, so it
+# may run several times into the same directory.
+if [[ -x "$install_dir/uv" ]]; then
+  exit 0
+fi
+
 case "$requested_arch" in
   amd64 | x86_64) release_target="x86_64-unknown-linux-gnu" ;;
   arm64 | aarch64) release_target="aarch64-unknown-linux-gnu" ;;

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared installer for CI (setup-pinned-tools) and the toolbox (Containerfile).
+# Shared installer — the one install mechanism for CI and local tooling.
 set -euo pipefail
 
 : "${OPENTOFU_VERSION:?OPENTOFU_VERSION must be set}"

@@ -39,7 +39,7 @@ if ! "$runtime" image inspect "$image" >/dev/null 2>&1; then
   # Only the base image needs a build arg; the installers read their
   # versions from the versions.env baked into the build context.
   "$runtime" build \
-    --build-arg "PYTHON_VERSION=${LAMBDA_PYTHON_VERSION}" \
+    --build-arg "LAMBDA_PYTHON_VERSION=${LAMBDA_PYTHON_VERSION}" \
     -t "$image" -f "$ROOT/Containerfile" "$ROOT" >&2
 fi
 
@@ -55,9 +55,14 @@ if [[ -t 0 && -t 1 ]]; then
   stdio_args+=(-t)
 fi
 
+# The variable is forwarded into the container so preview.py can couple its
+# listen port and bind address to the published port.
 publish_args=()
 if [[ -n "${BOOTSTRAP_PUBLISH:-}" ]]; then
-  publish_args=(-p "127.0.0.1:${BOOTSTRAP_PUBLISH}:${BOOTSTRAP_PUBLISH}")
+  publish_args=(
+    -p "127.0.0.1:${BOOTSTRAP_PUBLISH}:${BOOTSTRAP_PUBLISH}"
+    -e "BOOTSTRAP_PUBLISH=${BOOTSTRAP_PUBLISH}"
+  )
 fi
 
 if [[ $# -eq 0 ]]; then

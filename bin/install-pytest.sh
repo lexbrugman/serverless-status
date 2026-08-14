@@ -16,10 +16,8 @@ set -euo pipefail
 
 install_dir="${1:?usage: install-pytest.sh INSTALL_DIR}"
 
+"$(dirname "$0")/install-uv.sh" "$install_dir"
 uv="$install_dir/uv"
-if [[ ! -x "$uv" ]]; then
-  "$(dirname "$0")/install-uv.sh" "$install_dir"
-fi
 
 # The venv is pinned to the Lambda interpreter line: the suite imports the
 # renderer, whose syntax targets exactly that Python. uv fetches a managed
