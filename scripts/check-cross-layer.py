@@ -17,6 +17,11 @@ ROOT = Path(__file__).resolve().parent.parent
 # the mirrored version.
 MIRRORS = [
     ("ruff.toml", r'^target-version = "py(\d)(\d+)"', "ruff target-version"),
+    (
+        "modules/renderer/lambda.tf",
+        r'^\s*runtime\s*= "python(\d)\.(\d+)"',
+        "Lambda runtime",
+    ),
 ]
 
 

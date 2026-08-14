@@ -1,0 +1,30 @@
+name: Integration
+
+# The handler under the real Lambda runtime image against DynamoDB Local and
+# a canned Prometheus — the gate for what moto cannot catch: import errors,
+# handler signature, runtime incompatibility. archive_file ships whatever is
+# in src/ with no import guarantee; this job is why that is acceptable.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Start the dev stack
+        run: scripts/dev-stack.sh
+
+      - name: Invoke and validate
+        run: scripts/check-integration.py
+
+      - name: Tear down
+        if: always()
+        run: scripts/dev-stack.sh --down

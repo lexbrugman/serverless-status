@@ -19,6 +19,7 @@ jobs:
       matrix:
         module:
           - modules/checks
+          - modules/renderer
 
     steps:
       - name: Check out repository

@@ -37,3 +37,9 @@ jobs:
     permissions:
       contents: read
     uses: ./.github/workflows/tofu-checks.yml
+
+  integration:
+    needs: [lint-test]
+    permissions:
+      contents: read
+    uses: ./.github/workflows/integration.yml
