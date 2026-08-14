@@ -1,0 +1,31 @@
+name: Set up pinned tools
+description: Install repo-pinned CLI tools via their shared installers.
+
+inputs:
+  tools:
+    description: >-
+      Multiline list of tool names; each resolves to bin/install-<tool>.sh
+      and reads its version from versions.env.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Load versions.env
+      uses: ./.github/actions/load-versions
+
+    - name: Install pinned tools
+      shell: bash
+      env:
+        TOOLS: ${{ inputs.tools }}
+        # The digest-fallback installers call api.github.com; authenticated,
+        # so the shared-runner unauthenticated rate limit cannot flake them.
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        set -euo pipefail
+        install_dir="$RUNNER_TEMP/pinned-tools"
+        while read -r tool; do
+          [[ -n "$tool" ]] || continue
+          "bin/install-${tool}.sh" "$install_dir"
+        done <<< "$TOOLS"
+        echo "$install_dir" >> "$GITHUB_PATH"

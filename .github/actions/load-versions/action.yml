@@ -1,0 +1,14 @@
+name: Load versions.env
+description: Export every entry of versions.env into the job environment.
+
+runs:
+  using: composite
+  steps:
+    - name: Load versions.env
+      shell: bash
+      run: |
+        set -euo pipefail
+        while IFS='=' read -r key value; do
+          [[ -z "$key" || "$key" == \#* ]] && continue
+          echo "$key=$value" >> "$GITHUB_ENV"
+        done < versions.env

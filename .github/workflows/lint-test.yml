@@ -1,0 +1,37 @@
+name: Lint & Test
+
+# Lints the whole repository (scripts/lint.sh) and runs the test suite
+# (scripts/test.sh). Both are deterministic for a given commit — the linters
+# and pytest are pinned in versions.env — so this is the gate every other
+# job sits behind in ci.yml.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up pinned tools
+        uses: ./.github/actions/setup-pinned-tools
+        with:
+          tools: |
+            shellcheck
+            shfmt
+            ruff
+            actionlint
+            tofu
+            pytest
+
+      - name: Lint the repository
+        run: scripts/lint.sh
+
+      - name: Run the test suite
+        run: scripts/test.sh

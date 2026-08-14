@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One run per ref at a time. cancel-in-progress stays false: master runs end
+# in a release tag, and every gated push deserves its own tag rather than
+# being silently superseded mid-run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Lint & test gate every other job: they all execute these scripts, so
+  # nothing runs — and no verdict is trusted — until the tooling is clean
+  # and behaves.
+  lint-test:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/lint-test.yml
