@@ -176,7 +176,11 @@ def main() -> None:
 
         handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(out))
         print(f"serving {out} on http://localhost:{args.serve}/")
-        http.server.ThreadingHTTPServer(("127.0.0.1", args.serve), handler).serve_forever()
+        # All interfaces, not loopback: inside the toolbox the published port
+        # forwards to the container's own address (BOOTSTRAP_PUBLISH=8000
+        # scripts/bootstrap-shell.sh scripts/preview.py --serve). The host
+        # side of that mapping stays loopback-only.
+        http.server.ThreadingHTTPServer(("0.0.0.0", args.serve), handler).serve_forever()
 
 
 if __name__ == "__main__":

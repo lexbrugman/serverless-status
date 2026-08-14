@@ -1,3 +1,6 @@
-# The toolbox build consumes only bin/; keep the context to exactly that.
+# The toolbox build consumes only bin/ and versions.env; keep the context
+# to exactly that. (.dockerignore is a symlink to this file: Docker reads
+# only that name, Podman only this one.)
 *
 !bin/
+!versions.env

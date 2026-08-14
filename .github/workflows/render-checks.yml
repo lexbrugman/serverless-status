@@ -19,6 +19,14 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7.0.1
 
+      # The renderer's syntax targets the Lambda interpreter, which is newer
+      # than the runner's system Python.
+      - name: Set up pinned tools
+        uses: ./.github/actions/setup-pinned-tools
+        with:
+          tools: |
+            python
+
       - name: Render and validate every fixture state
         run: scripts/preview.py --out rendered
 

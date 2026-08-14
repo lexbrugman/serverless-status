@@ -53,6 +53,7 @@ scripts/bootstrap-shell.sh                         # a shell with every pinned t
 scripts/bootstrap-shell.sh scripts/lint.sh         # everything CI lints, identically
 scripts/bootstrap-shell.sh scripts/test.sh         # pytest (100% line+branch) + tofu test
 scripts/bootstrap-shell.sh scripts/preview.py      # render all fixture states, no credentials
+BOOTSTRAP_PUBLISH=8000 scripts/bootstrap-shell.sh scripts/preview.py --serve   # …and browse them
 scripts/dev-stack.sh                               # the handler under the real Lambda runtime image
 ```
 

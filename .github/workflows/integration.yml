@@ -19,6 +19,14 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7.0.1
 
+      # The validator imports the renderer, whose syntax targets the Lambda
+      # interpreter — newer than the runner's system Python.
+      - name: Set up pinned tools
+        uses: ./.github/actions/setup-pinned-tools
+        with:
+          tools: |
+            python
+
       - name: Start the dev stack
         run: scripts/dev-stack.sh
 

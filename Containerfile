@@ -8,19 +8,6 @@
 ARG PYTHON_VERSION
 FROM docker.io/library/python:${PYTHON_VERSION}-slim
 
-ARG OPENTOFU_VERSION
-ARG TFLINT_VERSION
-ARG SHELLCHECK_VERSION
-ARG SHFMT_VERSION
-ARG RUFF_VERSION
-ARG ACTIONLINT_VERSION
-ARG UV_VERSION
-ARG PYTEST_VERSION
-ARG PYTEST_COV_VERSION
-ARG COVERAGE_VERSION
-ARG BOTO3_VERSION
-ARG MOTO_VERSION
-
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update \
@@ -32,13 +19,17 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY bin/ /tmp/bin/
+COPY versions.env /tmp/versions.env
 
-# Every installer runs, so the toolbox carries every pinned tool by
-# construction; each reads its <TOOL>_VERSION from the ARGs above. The
-# digest-fallback installers call api.github.com unauthenticated here — a
-# local one-off build, not a shared-runner IP.
+# Every installer runs with every version exported, so the toolbox carries
+# every pinned tool by construction and a new tool is one installer plus a
+# versions.env entry — no list here to forget. The tag already hashes
+# versions.env, so sourcing it cannot go stale. The digest-fallback
+# installers call api.github.com unauthenticated here — a local one-off
+# build, not a shared-runner IP.
 RUN set -eux; \
+  set -a; . /tmp/versions.env; set +a; \
   for installer in /tmp/bin/install-*.sh; do \
     "$installer" /usr/local/bin; \
   done; \
-  rm -rf /tmp/bin
+  rm -rf /tmp/bin /tmp/versions.env
