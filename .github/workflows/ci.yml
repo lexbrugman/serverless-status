@@ -43,3 +43,15 @@ jobs:
     permissions:
       contents: read
     uses: ./.github/workflows/integration.yml
+
+  # Master is release: every push that passes the whole gate tags and
+  # publishes. There is no human "should this ship" moment — the gate is
+  # the release review.
+  release:
+    if: |
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.ref == 'refs/heads/master'
+    needs: [lint-test, render-checks, tofu-checks, integration]
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release.yml
