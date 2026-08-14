@@ -7,7 +7,9 @@ set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 
-pytest --quiet tests/
+# --cov last: it takes an optional value, so a path after it would become
+# its argument and silently re-scope coverage away from .coveragerc.
+pytest --quiet tests/ --cov
 
 for module in modules/*/; do
   if compgen -G "${module}tests/*.tftest.hcl" >/dev/null; then

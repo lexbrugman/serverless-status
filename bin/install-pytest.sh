@@ -8,6 +8,8 @@
 set -euo pipefail
 
 : "${PYTEST_VERSION:?PYTEST_VERSION must be set}"
+: "${PYTEST_COV_VERSION:?PYTEST_COV_VERSION must be set}"
+: "${COVERAGE_VERSION:?COVERAGE_VERSION must be set}"
 
 install_dir="${1:?usage: install-pytest.sh INSTALL_DIR}"
 
@@ -18,5 +20,8 @@ fi
 
 venv_dir="$install_dir/.pytest-venv"
 "$uv" venv --quiet --clear "$venv_dir"
-"$uv" pip install --quiet --python "$venv_dir/bin/python" "pytest==${PYTEST_VERSION}"
+"$uv" pip install --quiet --python "$venv_dir/bin/python" \
+  "pytest==${PYTEST_VERSION}" \
+  "pytest-cov==${PYTEST_COV_VERSION}" \
+  "coverage==${COVERAGE_VERSION}"
 ln -sf "$venv_dir/bin/pytest" "$install_dir/pytest"

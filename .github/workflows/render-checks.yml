@@ -1,0 +1,29 @@
+name: Render Checks
+
+# Renders every fixture state and validates the output (well-formed HTML,
+# schema-valid status.json, parsable badge SVG, no external references), then
+# uploads the pages as a build artifact — so every renderer change is
+# reviewable by looking at it, not by reading a diff of HTML generation code.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  render-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Render and validate every fixture state
+        run: scripts/preview.py --out rendered
+
+      - name: Upload rendered pages
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: rendered-pages
+          path: rendered/

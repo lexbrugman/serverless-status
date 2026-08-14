@@ -1,0 +1,12 @@
+# Coverage is enforced at 100% line and branch — for the product code. The
+# scope is modules/renderer/src only, on purpose: scripts/ and tests/ are
+# process glue and fixtures, covered by CI executing them for real
+# (AGENTS.md, Testing); mocked tests for glue test the mocks.
+[run]
+branch = True
+source =
+    modules/renderer/src
+
+[report]
+fail_under = 100
+show_missing = True

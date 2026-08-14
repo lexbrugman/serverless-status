@@ -28,9 +28,15 @@ that are not derivable from the code.
 
 - `scripts/test.sh` runs the pytest suite under `tests/` and `tofu test` in
   each module; it is the second half of the lint-test gate.
-- Coverage is qualitative, never a percentage: every decision-bearing
-  function has tests; process-orchestrating glue is covered by CI executing
-  it for real. Do not add mocked tests to glue — they test the mocks.
+- Python product code (`modules/renderer/src`) carries **100% line and
+  branch coverage**, enforced by `.coveragerc` (`fail_under = 100`); the
+  gate fails on the first uncovered branch. Unreachable code is removed,
+  not excluded — a `# pragma: no cover` needs the same written
+  justification as a lint suppression, and none exist today.
+- Outside that scope coverage is qualitative: scripts/ and the OpenTofu
+  layer are process glue and declarations, covered by CI executing them for
+  real and by `tofu test`. Do not add mocked tests to glue — they test the
+  mocks.
 - **Every guard is verified by mutation.** Break the tree once per guard,
   watch the run fail with that guard's message, restore. CI only ever runs
   over a compliant tree, so a guard silently unwired stays green everywhere;

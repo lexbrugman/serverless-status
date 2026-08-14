@@ -1,0 +1,113 @@
+{
+  "schema_version": 1,
+  "site": {
+    "name": "Example Corp",
+    "title": null,
+    "description": "Live availability of Example Corp services.",
+    "timezone": "Europe/Amsterdam",
+    "accent": "#16a34a",
+    "logo_svg": null,
+    "links": [
+      { "label": "example.com", "url": "https://example.com" }
+    ]
+  },
+  "page": {
+    "history_days": 90,
+    "outage_log_days": 30,
+    "retention_days": 400,
+    "refresh_seconds": 60
+  },
+  "checks": {
+    "website": {
+      "display": "Website",
+      "group": "Web",
+      "type": "https",
+      "host": "www.example.com",
+      "port": 443,
+      "path": "/",
+      "order": 10,
+      "latency_budget_ms": null
+    },
+    "api": {
+      "display": "API",
+      "group": "Web",
+      "type": "https",
+      "host": "api.example.com",
+      "port": 443,
+      "path": "/health",
+      "order": 20,
+      "latency_budget_ms": 800
+    },
+    "docs": {
+      "display": "Documentation",
+      "group": "Web",
+      "type": "https",
+      "host": "docs.example.com",
+      "port": 443,
+      "path": "/",
+      "order": 30,
+      "latency_budget_ms": null
+    },
+    "mail-inbound": {
+      "display": "Inbound mail (MX 1)",
+      "group": "Mail",
+      "type": "smtp",
+      "host": "mx1.example.com",
+      "port": 25,
+      "path": null,
+      "order": 40,
+      "latency_budget_ms": null
+    },
+    "mail-inbound-backup": {
+      "display": "Inbound mail (MX 2)",
+      "group": "Mail",
+      "type": "smtp",
+      "host": "mx2.example.com",
+      "port": 25,
+      "path": null,
+      "order": 50,
+      "latency_budget_ms": null
+    },
+    "webmail": {
+      "display": "Webmail",
+      "group": "Mail",
+      "type": "https",
+      "host": "mail.example.com",
+      "port": 443,
+      "path": "/",
+      "order": 60,
+      "latency_budget_ms": null
+    },
+    "office-uplink": {
+      "display": "Office connectivity",
+      "group": "Network",
+      "type": "ping",
+      "host": "gw.example.com",
+      "port": null,
+      "path": null,
+      "order": 70,
+      "latency_budget_ms": null
+    },
+    "dns": {
+      "display": "Primary DNS",
+      "group": "Network",
+      "type": "ping",
+      "host": "ns1.example.com",
+      "port": null,
+      "path": null,
+      "order": 80,
+      "latency_budget_ms": null
+    },
+    "vpn": {
+      "display": "VPN portal",
+      "group": "Network",
+      "type": "https",
+      "host": "vpn.example.com",
+      "port": 443,
+      "path": "/",
+      "order": 90,
+      "latency_budget_ms": null
+    }
+  },
+  "groups": ["Web", "Mail", "Network"]
+}

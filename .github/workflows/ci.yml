@@ -25,3 +25,9 @@ jobs:
     permissions:
       contents: read
     uses: ./.github/workflows/lint-test.yml
+
+  render-checks:
+    needs: [lint-test]
+    permissions:
+      contents: read
+    uses: ./.github/workflows/render-checks.yml
