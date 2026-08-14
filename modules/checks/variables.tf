@@ -66,11 +66,6 @@ variable "monthly_execution_budget" {
   default     = 90000
 }
 
-variable "smtp_ehlo_hostname" {
-  description = "Hostname the SMTP dialogue announces in EHLO — normally the status page's own domain."
-  type        = string
-}
-
 variable "site" {
   description = "Page identity, passed through to the renderer via the manifest."
   type = object({

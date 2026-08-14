@@ -57,6 +57,15 @@ resource "grafana_synthetic_monitoring_check" "ping" {
   }
 }
 
+# The STARTTLS conversation lives in its own module because two consumers
+# need the identical list: this resource and the dialogue-order guard
+# (scripts/check-smtp-dialogue.py), which proves the provider still
+# transmits it in order. See dialogue/main.tf for why the spellings are
+# load-bearing.
+module "smtp_dialogue" {
+  source = "./dialogue"
+}
+
 resource "grafana_synthetic_monitoring_check" "smtp" {
   provider = grafana.sm
   for_each = local.smtp_checks
@@ -75,7 +84,7 @@ resource "grafana_synthetic_monitoring_check" "smtp" {
       tls = false
 
       dynamic "query_response" {
-        for_each = local.smtp_dialogue
+        for_each = module.smtp_dialogue.entries
         content {
           expect    = query_response.value.expect
           send      = query_response.value.send

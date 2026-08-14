@@ -28,8 +28,7 @@ override_data {
 }
 
 variables {
-  stack_slug         = "examplecorp"
-  smtp_ehlo_hostname = "status.example.com"
+  stack_slug = "examplecorp"
 
   site = {
     name     = "Example Corp"

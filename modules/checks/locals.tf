@@ -30,22 +30,4 @@ locals {
     if contains(keys(data.grafana_synthetic_monitoring_probes.main.probes), location)
   ]
 
-  # The SMTP conversation, executed by the probe as expect -> send ->
-  # start_tls within each entry, entries in order. A server that accepts
-  # connections but fails STARTTLS negotiation shows as down; the TLS
-  # handshake completing is the validation, and the post-upgrade EHLO/QUIT
-  # proves the secured channel actually speaks SMTP.
-  #
-  # ORDER HAZARD: the provider models query_response as a set and serializes
-  # it in hash order, not declaration order. Step zero exists to verify the
-  # stored dialogue against the SM API before anything downstream is built;
-  # if the order arrives scrambled, these entries must be reworked (or the
-  # provider fixed) before proceeding.
-  smtp_dialogue = [
-    { expect = "^220", send = "EHLO ${var.smtp_ehlo_hostname}", start_tls = false },
-    { expect = "^250", send = "STARTTLS", start_tls = false },
-    { expect = "^220", send = "", start_tls = true },
-    { expect = "", send = "EHLO ${var.smtp_ehlo_hostname}", start_tls = false },
-    { expect = "^250", send = "QUIT", start_tls = false },
-  ]
 }

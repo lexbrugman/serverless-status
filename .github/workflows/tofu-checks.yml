@@ -33,3 +33,23 @@ jobs:
 
       - name: Validate ${{ matrix.module }}
         run: scripts/tofu-checks.sh "${{ matrix.module }}"
+
+  # The one invariant no plan or test can see: the order the provider
+  # actually transmits the SMTP dialogue in. Applied for real against a
+  # local mock of the SM API, with the pinned provider version.
+  smtp-dialogue-order:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up pinned tools
+        uses: ./.github/actions/setup-pinned-tools
+        with:
+          tools: |
+            tofu
+
+      - name: Verify transmitted dialogue order
+        run: scripts/check-smtp-dialogue.py
