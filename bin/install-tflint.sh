@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared installer for CI (setup-pinned-tools) and local shells (dev-tools.sh).
+# Shared installer for CI (setup-pinned-tools) and the toolbox (Containerfile).
 set -euo pipefail
 
 : "${TFLINT_VERSION:?TFLINT_VERSION must be set}"

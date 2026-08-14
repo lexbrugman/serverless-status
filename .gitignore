@@ -3,9 +3,6 @@
 # is then deleted; it never ships, so it is excluded from lint discovery.
 PLAN.md
 
-# Local pinned-tool installs (scripts/dev-tools.sh).
-.tools/
-
 # Rendered preview output (scripts/preview.py).
 out/
 

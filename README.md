@@ -45,12 +45,15 @@ works: [docs/architecture.md](docs/architecture.md).
 
 ## Development
 
+Everything runs in the toolbox container — the host needs only git and a
+container runtime (podman or docker):
+
 ```sh
-scripts/dev-tools.sh          # install the pinned toolchain into .tools/
-scripts/lint.sh               # everything CI lints, identically
-scripts/test.sh               # pytest (100% line+branch on the renderer) + tofu test
-scripts/preview.py --serve    # render all fixture states, no credentials needed
-scripts/dev-stack.sh          # the handler under the real Lambda runtime image
+scripts/bootstrap-shell.sh                         # a shell with every pinned tool
+scripts/bootstrap-shell.sh scripts/lint.sh         # everything CI lints, identically
+scripts/bootstrap-shell.sh scripts/test.sh         # pytest (100% line+branch) + tofu test
+scripts/bootstrap-shell.sh scripts/preview.py      # render all fixture states, no credentials
+scripts/dev-stack.sh                               # the handler under the real Lambda runtime image
 ```
 
 Working agreements live in [AGENTS.md](AGENTS.md). Master is release: every

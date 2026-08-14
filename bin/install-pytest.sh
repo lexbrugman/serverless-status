@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared installer for CI (setup-pinned-tools) and local shells (dev-tools.sh).
+# Shared installer for CI (setup-pinned-tools) and the toolbox (Containerfile).
 #
 # pypi pins by version, not checksum — a test-only dependency that ships
 # nowhere. Installed into a venv under INSTALL_DIR so the tools stay as

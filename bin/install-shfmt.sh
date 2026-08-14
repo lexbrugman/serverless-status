@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared installer for CI (setup-pinned-tools) and local shells (dev-tools.sh).
+# Shared installer for CI (setup-pinned-tools) and the toolbox (Containerfile).
 #
 # Upstream publishes no checksum asset, so the download is verified against
 # GitHub's release-asset digest — the fallback tier (AGENTS.md, Pinned tools).

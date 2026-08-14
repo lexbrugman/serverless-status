@@ -12,7 +12,8 @@ that are not derivable from the code.
   the test suite: every other job executes these scripts, so nothing runs
   until they are clean and behave. Behavior is file-configured
   (`.shellcheckrc`, `.editorconfig`, `ruff.toml`, `.tflint.hcl`) so local
-  runs, CI, and editors all agree.
+  runs, CI, and editors all agree. Run locally:
+  `scripts/bootstrap-shell.sh scripts/lint.sh`.
 - Fix findings by restructuring the code. An inline suppression
   (`# shellcheck disable`, `# noqa`) needs a genuinely unfixable false
   positive plus a written justification — as of today none exist, and adding
@@ -58,8 +59,10 @@ that are not derivable from the code.
   `# renovate:` annotation. No tool version lives anywhere else.
 - Every tool installs through one mechanism: a shared installer in `bin/`
   (`install-<tool>.sh`), consumed by CI via
-  `.github/actions/setup-pinned-tools` and locally via
-  `scripts/dev-tools.sh`. A new tool is one installer plus a list entry —
+  `.github/actions/setup-pinned-tools` and locally by the toolbox image
+  (`Containerfile`, run via `scripts/bootstrap-shell.sh`). Nothing installs
+  on the host: the toolbox tag hashes its inputs, so a version bump
+  rebuilds it exactly once. A new tool is one installer plus a list entry —
   never an inline curl block, never a marketplace setup action.
 - Installers verify every download, in two tiers. Preferred: the checksum
   asset the release itself publishes. A tool that publishes none verifies

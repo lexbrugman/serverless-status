@@ -1,0 +1,3 @@
+# The toolbox build consumes only bin/; keep the context to exactly that.
+*
+!bin/
