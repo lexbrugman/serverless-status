@@ -92,8 +92,10 @@ that are not derivable from the code.
 - Shell orchestrates processes; Python makes decisions over structured data.
   A shell script that starts parsing structured data migrates to Python; a
   Python script that only sequences subprocesses migrates to shell.
-- Every script starts `set -euo pipefail`, resolves the repo root from
-  `BASH_SOURCE`, and is safe to run from any directory.
+- Every script starts `set -euo pipefail`, resolves the repo root
+  (`git rev-parse --show-toplevel`, or `BASH_SOURCE` for the scripts that
+  must work before or without git context), and is safe to run from any
+  directory.
 - Never `eval` constructed strings.
 - Prefer running an existing engine over maintaining an equivalent; bespoke
   bridging code names its successor and is deleted at adoption. No

@@ -1,0 +1,15 @@
+name: Set up pinned tofu
+description: Install the pinned OpenTofu via the shared installer.
+
+runs:
+  using: composite
+  steps:
+    - name: Install pinned tofu
+      shell: bash
+      run: |
+        set -euo pipefail
+        set -a
+        source versions.env
+        set +a
+        bin/install-tofu.sh "$RUNNER_TEMP/tools"
+        echo "$RUNNER_TEMP/tools" >> "$GITHUB_PATH"

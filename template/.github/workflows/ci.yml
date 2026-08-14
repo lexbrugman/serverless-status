@@ -36,14 +36,8 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7.0.1
 
-      - name: Install pinned tofu
-        run: |
-          set -euo pipefail
-          set -a
-          source versions.env
-          set +a
-          bin/install-tofu.sh "$RUNNER_TEMP/tools"
-          echo "$RUNNER_TEMP/tools" >> "$GITHUB_PATH"
+      - name: Set up pinned tofu
+        uses: ./.github/actions/setup-tofu
 
       - name: Assume the plan role
         uses: aws-actions/configure-aws-credentials@v5.1.1
@@ -85,14 +79,8 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7.0.1
 
-      - name: Install pinned tofu
-        run: |
-          set -euo pipefail
-          set -a
-          source versions.env
-          set +a
-          bin/install-tofu.sh "$RUNNER_TEMP/tools"
-          echo "$RUNNER_TEMP/tools" >> "$GITHUB_PATH"
+      - name: Set up pinned tofu
+        uses: ./.github/actions/setup-tofu
 
       - name: Assume the apply role
         uses: aws-actions/configure-aws-credentials@v5.1.1
