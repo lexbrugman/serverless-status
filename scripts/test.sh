@@ -14,6 +14,6 @@ pytest --quiet tests/ --cov
 for module in modules/*/; do
   if compgen -G "${module}tests/*.tftest.hcl" >/dev/null; then
     echo "tofu test (${module})"
-    (cd "$module" && tofu test)
+    (cd "$module" && tofu init -backend=false -input=false >/dev/null && tofu test)
   fi
 done

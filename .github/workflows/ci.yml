@@ -31,3 +31,9 @@ jobs:
     permissions:
       contents: read
     uses: ./.github/workflows/render-checks.yml
+
+  tofu-checks:
+    needs: [lint-test]
+    permissions:
+      contents: read
+    uses: ./.github/workflows/tofu-checks.yml

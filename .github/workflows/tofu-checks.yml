@@ -1,0 +1,35 @@
+name: Tofu Checks
+
+# init -backend=false + validate + tflint over each module directory.
+# Formatting is lint.sh's job (the lint-test gate); module behavior tests
+# run in test.sh (same gate); this job proves each module stands alone.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  tofu-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - modules/checks
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up pinned tools
+        uses: ./.github/actions/setup-pinned-tools
+        with:
+          tools: |
+            tofu
+            tflint
+
+      - name: Validate ${{ matrix.module }}
+        run: scripts/tofu-checks.sh "${{ matrix.module }}"
