@@ -30,7 +30,7 @@ require_found "shell scripts" "${#shell_scripts[@]}"
 mapfile -t python_files < <(discover '*.py')
 require_found "Python files" "${#python_files[@]}"
 
-mapfile -t workflows < <(discover '.github/workflows/*.yml' '.github/workflows/*.yaml')
+mapfile -t workflows < <(discover '.github/workflows/*.yml' 'template/.github/workflows/*.yml')
 require_found "workflow files" "${#workflows[@]}"
 
 echo "shellcheck (${#shell_scripts[@]} scripts)"
@@ -61,6 +61,21 @@ require_found "files" "${#all_files[@]}"
 echo "identity sweep (${#all_files[@]} files)"
 if grep -nIiE -- "$identity_pattern" "${all_files[@]}"; then
   echo "ERROR: operator identity found in the public tree (see matches above)." >&2
+  exit 1
+fi
+
+# The committed template floats on master; new-instance.sh stamps the
+# release at bootstrap. A pinned ref here would put Renovate on a treadmill:
+# merging its bump PR cuts a new tag, which makes the template stale again.
+mapfile -t template_tf < <(discover 'template/*.tf')
+require_found "template .tf files" "${#template_tf[@]}"
+echo "template ref guard (${#template_tf[@]} files)"
+if grep -n '?ref=' "${template_tf[@]}" | grep -v '?ref=master'; then
+  echo "ERROR: the committed template must float on ?ref=master (see matches above)." >&2
+  exit 1
+fi
+if ! grep -q '?ref=master' "${template_tf[@]}"; then
+  echo "ERROR: no ?ref=master module source found in template/ — the stamp target is gone." >&2
   exit 1
 fi
 

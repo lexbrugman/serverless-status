@@ -1,0 +1,47 @@
+name: Scheduled Drift
+
+# A console click is found the next morning rather than never.
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TF_VAR_grafana_cloud_token: ${{ secrets.GRAFANA_CLOUD_TOKEN }}
+  TF_VAR_state_passphrase: ${{ secrets.STATE_PASSPHRASE }}
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Install pinned tofu
+        run: |
+          set -euo pipefail
+          set -a
+          source versions.env
+          set +a
+          bin/install-tofu.sh "$RUNNER_TEMP/tools"
+          echo "$RUNNER_TEMP/tools" >> "$GITHUB_PATH"
+
+      - name: Assume the plan role
+        uses: aws-actions/configure-aws-credentials@v5.1.1
+        with:
+          role-to-assume: ${{ vars.PLAN_ROLE_ARN }}
+          aws-region: eu-west-1
+
+      - name: Detect drift
+        run: |
+          set -euo pipefail
+          tofu init -input=false
+          tofu plan -input=false -detailed-exitcode

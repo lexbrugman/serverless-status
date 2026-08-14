@@ -35,6 +35,26 @@ jobs:
       - name: Validate ${{ matrix.module }}
         run: scripts/tofu-checks.sh "${{ matrix.module }}"
 
+  # The template is validated from a temp copy with sources rewritten to
+  # local paths — the ref it will be stamped with does not exist yet.
+  template:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up pinned tools
+        uses: ./.github/actions/setup-pinned-tools
+        with:
+          tools: |
+            tofu
+            tflint
+
+      - name: Validate the template
+        run: scripts/check-template.sh
+
   # The one invariant no plan or test can see: the order the provider
   # actually transmits the SMTP dialogue in. Applied for real against a
   # local mock of the SM API, with the pinned provider version.

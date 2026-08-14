@@ -1,0 +1,80 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "enabledManagers": [
+    "github-actions",
+    "terraform",
+    "custom.regex"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "versions.env entries, each annotated in-file with `# renovate: datasource=... depName=...`",
+      "managerFilePatterns": [
+        "/^versions\\.env$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>\\S+)\\n[A-Z0-9_]+=v?(?<currentValue>.+)\\n"
+      ]
+    }
+  ],
+  "labels": [
+    "dependencies"
+  ],
+  "gitIgnoredAuthors": [
+    "41898282+github-actions[bot]@users.noreply.github.com"
+  ],
+  "dependencyDashboard": false,
+  "prHourlyLimit": 2,
+  "rangeStrategy": "pin",
+  "packageRules": [
+    {
+      "description": "Group GitHub Actions updates",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "groupName": "github-actions"
+    },
+    {
+      "description": "OpenTofu CLI is pinned in versions.env, not Terraform required_version constraints",
+      "matchManagers": [
+        "terraform"
+      ],
+      "matchPackageNames": [
+        "hashicorp/terraform"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "The module ?ref= bump is the one ref loop that converges: this repo cuts no releases, so merging the PR (whose plan comment is the review) cannot re-trigger it",
+      "matchManagers": [
+        "terraform"
+      ],
+      "matchDepNames": [
+        "github.com/lexbrugman/serverless-status"
+      ],
+      "groupName": "serverless-status"
+    },
+    {
+      "description": "Providers keep their floor range and move through the lock file",
+      "matchManagers": [
+        "terraform"
+      ],
+      "matchDepNames": [
+        "!github.com/lexbrugman/serverless-status"
+      ],
+      "rangeStrategy": "update-lockfile"
+    },
+    {
+      "description": "Regenerate the provider lock file so provider versions stay single-sourced in module constraints",
+      "matchManagers": [
+        "terraform"
+      ],
+      "lockFileMaintenance": {
+        "enabled": true
+      }
+    }
+  ]
+}

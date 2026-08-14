@@ -1,0 +1,108 @@
+name: CI
+
+# PRs get a plan posted as a comment — the review gate, and what makes a
+# Renovate ref-bump PR meaningful. Pushes to master auto-apply from the
+# protected production environment.
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+# Applies must never interleave; a superseded run's commits apply with the
+# run that replaced it.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  TF_VAR_grafana_cloud_token: ${{ secrets.GRAFANA_CLOUD_TOKEN }}
+  TF_VAR_state_passphrase: ${{ secrets.STATE_PASSPHRASE }}
+
+jobs:
+  plan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Install pinned tofu
+        run: |
+          set -euo pipefail
+          set -a
+          source versions.env
+          set +a
+          bin/install-tofu.sh "$RUNNER_TEMP/tools"
+          echo "$RUNNER_TEMP/tools" >> "$GITHUB_PATH"
+
+      - name: Assume the plan role
+        uses: aws-actions/configure-aws-credentials@v5.1.1
+        with:
+          role-to-assume: ${{ vars.PLAN_ROLE_ARN }}
+          aws-region: eu-west-1
+
+      - name: Plan
+        id: plan
+        run: |
+          set -euo pipefail
+          tofu init -input=false
+          tofu plan -input=false -no-color -out=tfplan | tee plan.txt
+
+      - name: Comment the plan on the PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          {
+            echo '### tofu plan'
+            echo '```'
+            tail -c 60000 plan.txt
+            echo '```'
+          } > comment.md
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --body-file comment.md --create-if-none --edit-last
+
+  apply:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Install pinned tofu
+        run: |
+          set -euo pipefail
+          set -a
+          source versions.env
+          set +a
+          bin/install-tofu.sh "$RUNNER_TEMP/tools"
+          echo "$RUNNER_TEMP/tools" >> "$GITHUB_PATH"
+
+      - name: Assume the apply role
+        uses: aws-actions/configure-aws-credentials@v5.1.1
+        with:
+          role-to-assume: ${{ vars.APPLY_ROLE_ARN }}
+          aws-region: eu-west-1
+
+      - name: Apply
+        run: |
+          set -euo pipefail
+          module_ref="$(grep -om1 'ref=[0-9.]*' main.tf | cut -d= -f2)"
+          tofu init -input=false
+          tofu apply -input=false -auto-approve -var "page_version=${module_ref}"

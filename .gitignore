@@ -12,6 +12,8 @@ out/
 # Python
 __pycache__/
 .pytest_cache/
+.coverage
+.coverage.*
 
 # OpenTofu working directories.
 .terraform/
