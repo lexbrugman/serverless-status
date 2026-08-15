@@ -24,9 +24,10 @@ The short version — no local tooling beyond git and a browser:
    `STATE_PASSPHRASE` secrets in GitHub.
 4. **Bootstrap from CI** — run the **Bootstrap** workflow: phase `checks`
    first (step zero: watch `probe_success` in Grafana and verify the
-   stored SMTP dialogue order), then phase `all`. Its summary lists the
-   handover; setting `PLAN_ROLE_ARN` switches routine CI on. From then on,
-   PRs get a plan comment and master pushes apply.
+   stored SMTP dialogue order), then phase `all`, which also adopts the
+   hand-made trust. Its summary lists the handover; setting
+   `PLAN_ROLE_ARN` switches routine CI on. From then on, PRs get a plan
+   comment and master pushes apply.
 
 ## Upgrades
 

@@ -114,8 +114,8 @@ step 2).
 Run the **Bootstrap** workflow (Actions → Bootstrap → Run workflow) with
 phase `checks`. It generates the org structure from your orgs map
 (committed back to the repository, like every sync), creates the state
-bucket (its state also committed back), adopts the hand-made trust, and
-applies only the Grafana checks.
+bucket (its state also committed back), and applies only the Grafana
+checks.
 
 ## 5. Step zero — SMTP first
 
@@ -134,9 +134,12 @@ flag would be a permanent knob serving a one-time need.
 
 ## 6. Everything, and the handover
 
-Run **Bootstrap** again with phase `all`. The apply blocks on ACM
-certificate issuance, so a finished run is a working TLS endpoint. Its
-summary lists the handover, verbatim:
+Run **Bootstrap** again with phase `all`. It first adopts the hand-made
+trust — importing the console-created provider and role, which is only
+possible now: an import evaluates the whole configuration, and the SM
+provider configs need phase `checks`'s state to exist — then applies
+everything. The apply blocks on ACM certificate issuance, so a finished
+run is a working TLS endpoint. Its summary lists the handover, verbatim:
 
 - the repository variable `PLAN_ROLE_ARN` — setting it is also the
   switch that turns routine CI on: plan, apply, and drift jobs skip until
