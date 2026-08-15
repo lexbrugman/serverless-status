@@ -78,10 +78,19 @@ policy:
    `https://token.actions.githubusercontent.com`, audience
    `sts.amazonaws.com`.
 2. IAM → Roles → Create role → Web identity: that provider, audience
-   `sts.amazonaws.com`, your instance repository — leave the branch filter
-   empty; the first apply narrows the trust to the production environment.
-   Attach `AdministratorAccess` and name it exactly
-   `serverless-status-apply` — the name is the adoption contract.
+   `sts.amazonaws.com`, your instance repository. Attach
+   `AdministratorAccess` and name it exactly `serverless-status-apply` —
+   the name is the adoption contract. Then open the role's *Trust
+   relationships* and verify the subject condition is exactly
+
+   ```json
+   "StringLike": { "token.actions.githubusercontent.com:sub": "repo:<owner>/<repo>:*" }
+   ```
+
+   The wizard's filter fields often produce something narrower, and the
+   bootstrap job authenticates with an environment-flavoured subject that
+   a branch-filtered trust rejects. The first apply replaces this policy
+   with the managed one, narrowed to the production environment.
 
 Then, in the instance repository, add the repository variable
 `APPLY_ROLE_ARN` (the new role's ARN) and two repository secrets:
@@ -117,7 +126,9 @@ Run **Bootstrap** again with phase `all`. The apply blocks on ACM
 certificate issuance, so a finished run is a working TLS endpoint. Its
 summary lists the handover, verbatim:
 
-- the repository variable `PLAN_ROLE_ARN`;
+- the repository variable `PLAN_ROLE_ARN` — setting it is also the
+  switch that turns routine CI on: plan, apply, and drift jobs skip until
+  it exists, so pushes during bootstrap stay inert;
 - restrict the `production` environment's deployment branches to master
   (GitHub created the environment when the bootstrap referenced it; the
   restriction is what makes the apply role's environment-bound trust mean
