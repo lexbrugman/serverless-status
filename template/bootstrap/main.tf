@@ -1,5 +1,5 @@
-# Do not edit — wiring a template update overwrites. Your values live in
-# terraform.tfvars beside this file.
+# Do not edit — wiring a template update overwrites. Your values arrive
+# from the root's state.auto.tfvars: tofu apply -var-file=../state.auto.tfvars
 #
 # A separate root so the main stack can never delete its own state store.
 # Its state is the local terraform.tfstate next to this file, committed to
@@ -18,22 +18,23 @@ terraform {
   }
 }
 
-variable "state_bucket" {
-  description = "Name of the state bucket; must match backend.tfvars and instance.auto.tfvars in the root above."
+# Named to match state.auto.tfvars, which is this root's var-file too.
+variable "bucket" {
+  description = "Name of the state bucket."
   type        = string
 }
 
-variable "aws_region" {
+variable "region" {
   description = "Region the bucket lives in."
   type        = string
 }
 
 provider "aws" {
-  region = var.aws_region
+  region = var.region
 }
 
 module "state_bucket" {
   source = "../wiring/state-bucket"
 
-  state_bucket = var.state_bucket
+  state_bucket = var.bucket
 }

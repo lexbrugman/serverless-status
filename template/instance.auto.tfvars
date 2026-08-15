@@ -3,12 +3,9 @@
 # template update can overwrite them without touching your configuration.
 domain        = "status.example.com"
 dns_zone_name = "example.com"
-aws_region    = "eu-west-1"
 
-# owner/name of this instance repository (CI trust) and the state bucket
-# (must match backend.tfvars and bootstrap/terraform.tfvars).
+# owner/name of this instance repository, for CI's OIDC trust.
 github_repository = "example-org/serverless-status-instance"
-state_bucket      = "CHANGE-ME-state-bucket"
 
 site = {
   name        = "Example Corp"
@@ -21,3 +18,17 @@ site = {
 
 # All optional; defaults shown in the module.
 page = {}
+
+# The Grafana accounts feeding this page. Adding an org is: an entry here,
+# its token in TF_VAR_grafana_cloud_tokens, one copy of org_example.tf
+# under the new key, and its entries in page.tf. Removing one is the
+# reverse; its checks then fail the plan until reassigned or deleted.
+orgs = {
+  example = {
+    stack_slug = "examplecorp"
+
+    # Synthetic Monitoring executions per month this account may spend —
+    # the allowance its plan includes, or the overage its owner accepts.
+    monthly_execution_budget = 90000
+  }
+}

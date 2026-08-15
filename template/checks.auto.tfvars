@@ -1,8 +1,8 @@
 # The only file touched day-to-day: every monitored endpoint, keyed by a
-# stable identifier. `org` names the account (orgs.auto.tfvars) whose
-# probes run — and whose budget pays for — the check. A key rename is a
-# deliberate destroy-and-recreate of that check's history. Adding check #10
-# is one entry here.
+# stable identifier. `org` names the account (the orgs map in
+# instance.auto.tfvars) whose probes run — and whose budget pays for — the
+# check. A key rename is a deliberate destroy-and-recreate of that check's
+# history. Adding check #10 is one entry here.
 checks = {
   website = {
     org     = "example"

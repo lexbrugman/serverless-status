@@ -37,7 +37,7 @@ jobs:
       - name: Detect drift
         run: |
           set -euo pipefail
-          tofu init -input=false -backend-config=backend.tfvars
+          tofu init -input=false -backend-config=state.auto.tfvars
           tofu plan -input=false -detailed-exitcode
 
       - name: Detect bootstrap drift

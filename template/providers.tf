@@ -14,9 +14,12 @@ terraform {
     }
   }
 
-  # A backend block cannot read variables; the values arrive at init:
-  #   tofu init -backend-config=backend.tfvars
-  backend "s3" {}
+  # A backend block cannot read variables; bucket and region arrive at
+  # init: tofu init -backend-config=state.auto.tfvars
+  backend "s3" {
+    key          = "serverless-status.tfstate"
+    use_lockfile = true
+  }
 
   # The Grafana metrics-read tokens land in state as resource attributes;
   # client-side encryption is the answer. The aws_kms key provider is the
@@ -44,7 +47,7 @@ terraform {
 }
 
 provider "aws" {
-  region = var.aws_region
+  region = var.region
 }
 
 # ACM certificates for CloudFront must live in us-east-1.

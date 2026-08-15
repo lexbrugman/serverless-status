@@ -44,13 +44,12 @@ lists; they also carry the module pins Renovate manages. Everything else —
 `wiring/` and the root `.tf` shims marked "do not edit" — is logic a
 template update overwrites wholesale. Fill in the data files:
 
-- `instance.auto.tfvars` — domain, zone, region, site identity, your
-  instance repository, and the state bucket name;
-- `orgs.auto.tfvars` — your Grafana account(s), keyed by org;
-- `checks.auto.tfvars` — your checks, each naming its org;
-- `backend.tfvars` and `bootstrap/terraform.tfvars` — the state bucket
-  again: a backend block cannot read variables, so one search-and-replace
-  of `CHANGE-ME-state-bucket` fills all three data files.
+- `instance.auto.tfvars` — who you are: domain, zone, site identity, your
+  instance repository, and your Grafana account(s) keyed by org;
+- `state.auto.tfvars` — where state lives: the bucket name and region,
+  each stated exactly once;
+- `checks.auto.tfvars` — what you monitor: your checks, each naming its
+  org.
 
 Set the two secrets in your shell (never in a file). The provisioning
 token is the one from step 1. The state passphrase is a secret you create
@@ -79,7 +78,7 @@ file holds only bucket metadata, no secrets.
 ```sh
 cd bootstrap
 tofu init
-tofu apply                       # admin credentials, once
+tofu apply -var-file=../state.auto.tfvars   # admin credentials, once
 git add terraform.tfstate
 git commit -m "Create the state bucket"
 cd ..
@@ -96,7 +95,7 @@ whether the STARTTLS dialogue is stored in order. Nothing downstream is
 built until this passes.
 
 ```sh
-tofu init -backend-config=backend.tfvars
+tofu init -backend-config=state.auto.tfvars
 tofu apply -target=module.checks_example
 ```
 

@@ -8,7 +8,7 @@ DynamoDB partition key component, and the resource address, so a rename is a
 deliberate destroy-and-recreate. Keys match `^[a-z0-9][a-z0-9-]*$`.
 
 In the instance, each entry also carries `org` — the Grafana account
-(`orgs.auto.tfvars`) whose probes run, and whose budget pays for, the
+(the `orgs` map in `instance.auto.tfvars`) whose probes run, and whose budget pays for, the
 check. The instance routes each org's slice to its own checks module and
 strips the attribute on the way; the module's contract is org-agnostic. A
 check referencing an unknown org fails the plan naming the offender.

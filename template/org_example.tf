@@ -1,5 +1,5 @@
 # One file per Grafana account: copy this file for a new org, replace
-# every "example" with the org's key (as in orgs.auto.tfvars), and add the
+# every "example" with the org's key (as in instance.auto.tfvars), and add the
 # new module to the two lists in page.tf. Provider configurations cannot be
 # created dynamically, so this per-org file is the ceiling of what OpenTofu
 # allows; everything else about an org — its checks, its budget, its

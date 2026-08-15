@@ -13,7 +13,7 @@ module "ci" {
   source = "./wiring/ci"
 
   github_repository = var.github_repository
-  state_bucket      = var.state_bucket
+  state_bucket      = var.bucket
 }
 
 output "plan_role_arn" {
