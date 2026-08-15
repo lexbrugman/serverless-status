@@ -1,8 +1,9 @@
 # Setup guide
 
-From nothing to a live status page. Prerequisites: a Grafana Cloud account
-per organisation, an AWS account, a Route 53 hosted zone for the parent
-domain, and a GitHub repository for your private instance.
+From nothing to a live status page, with no local tooling beyond git and a
+browser. Prerequisites: a Grafana Cloud account per organisation, an AWS
+account, a Route 53 hosted zone for the parent domain, and a GitHub
+repository for your private instance.
 
 ## 1. Grafana Cloud
 
@@ -11,7 +12,7 @@ domain, and a GitHub repository for your private instance.
    `accesspolicies:write`, `accesspolicies:delete`, `stacks:read`, and a
    token for it — **with an expiry**. This is the provisioning credential;
    it is the only Grafana secret that ever leaves Grafana, and it lives
-   solely in `TF_VAR_grafana_cloud_tokens`, keyed by org. Repeat per
+   solely in the `GRAFANA_CLOUD_TOKENS` secret, keyed by org. Repeat per
    organisation when several accounts feed one page: each org keeps its own
    account, billing, and execution budget.
 
@@ -34,17 +35,7 @@ A fresh clone of an empty private repository also works as the target —
 `git init`/`git remote` steps fall away.
 
 The stamper copies the template and pins the module sources to the release
-you cloned. Everything from here on happens inside the instance.
-
-Nothing installs on the host: `bin/tofu.sh` runs OpenTofu in a container
-at exactly the version the pinned release's CI tested — derived from the
-module ref, so a ref bump moves tofu in lockstep. `TF_VAR_*`/`AWS_*` pass
-through and `~/.aws` mounts read-only. Alias it once per shell and every
-command below works verbatim:
-
-```sh
-alias tofu="$PWD/bin/tofu.sh"
-```
+you cloned.
 
 The instance separates what you own from what the template owns, in
 three classes. The `*.tfvars` data files are yours. `org_<key>.tf` and
@@ -61,97 +52,78 @@ template update overwrites wholesale. Fill in the data files:
 - `checks.auto.tfvars` — what you monitor: your checks, each naming its
   org.
 
-Set the two secrets in your shell (never in a file). The provisioning
-token is the one from step 1. The state passphrase is a secret you create
-right here: it encrypts the state client-side, and every future plan and
-apply — yours and CI's — needs this exact value. Generate it once, store
-it in your password manager, and only then export it (it returns in step 6
-as the `STATE_PASSPHRASE` repository secret):
+Create the state passphrase: a secret you invent once. It encrypts the
+state client-side, and every future plan and apply needs this exact value.
+Generate it and store it in your password manager:
 
 ```sh
-head -c 24 /dev/urandom | base64        # the passphrase — store it first
-export TF_VAR_grafana_cloud_tokens='{ example = "<provisioning token>" }'
-export TF_VAR_state_passphrase=<the stored passphrase>
+head -c 24 /dev/urandom | base64
 ```
 
 Losing the passphrase means losing the state: encryption is enforced, so an
 unreadable state has no recovery path short of importing every resource
 into a fresh one.
 
-## 3. State bucket
+Commit the filled-in data files and push.
 
-The bucket belongs to the instance's separate `bootstrap/` root, so the
-main stack can never delete its own state store. That root's state is a
-local file committed to the repository: git predates everything, and the
-file holds only bucket metadata, no secrets.
+## 3. OIDC trust, by hand once
 
-Admin credentials reach the container the way the AWS SDK reads them:
-export `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` (plus
-`AWS_SESSION_TOKEN` for temporary keys), or `AWS_PROFILE` with an existing
-`~/.aws`.
+CI authenticates to AWS with OIDC from its very first run, so no AWS
+credential is ever stored anywhere. The trust itself cannot create itself,
+so two console creations come first — the first apply imports both and
+manages them from then on, replacing the hand-made trust with the written
+policy:
 
-```sh
-cd bootstrap
-tofu init
-tofu apply -var-file=../state.auto.tfvars
-git add terraform.tfstate .terraform.lock.hcl
-git commit -m "Create the state bucket"
-cd ..
-```
+1. IAM → Identity providers → Add provider: OpenID Connect, URL
+   `https://token.actions.githubusercontent.com`, audience
+   `sts.amazonaws.com`.
+2. IAM → Roles → Create role → Web identity: that provider, audience
+   `sts.amazonaws.com`, your instance repository — leave the branch filter
+   empty; the first apply narrows the trust to the production environment.
+   Attach `AdministratorAccess` and name it exactly
+   `serverless-status-apply` — the name is the adoption contract.
 
-The daily drift workflow re-plans this root read-only, so a console change
-to the bucket is found the next morning like any other drift.
+Then, in the instance repository, add the repository variable
+`APPLY_ROLE_ARN` (the new role's ARN) and two repository secrets:
+`GRAFANA_CLOUD_TOKENS` (the map from step 1, e.g.
+`{ example = "<provisioning token>" }`) and `STATE_PASSPHRASE` (from
+step 2).
 
-## 4. Step zero — SMTP first
+## 4. Bootstrap from CI
+
+Run the **Bootstrap** workflow (Actions → Bootstrap → Run workflow) with
+phase `checks`. It creates the state bucket (committing the bootstrap
+root's state back to the repository), adopts the hand-made trust, and
+applies only the Grafana checks.
+
+## 5. Step zero — SMTP first
 
 The SMTP checks are the reason this design exists, and they are the one
 thing OpenTofu cannot prove: whether the probes can egress port 25, and
 whether the STARTTLS dialogue is stored in order. Nothing downstream is
 built until this passes.
 
-```sh
-tofu init -backend-config=state.auto.tfvars
-tofu apply -target=module.checks_example
-```
-
-(One `-target` per org module when several accounts feed the page.)
-
-Then, in the Grafana console (or via the Prometheus API): watch
+In the Grafana console (or via the Prometheus API): watch
 `probe_success{job="<your smtp check>"}` report `1`, and confirm in the
 Synthetic Monitoring UI that the check's TCP query/response steps read
 greeting → EHLO → STARTTLS → upgrade → EHLO → QUIT in that order.
 
-`-target` is the right mechanism here; an `enabled` flag would be a
-permanent knob serving a one-time need.
+Applying only the checks first is the right mechanism here; an `enabled`
+flag would be a permanent knob serving a one-time need.
 
-## 5. Full apply
+## 6. Everything, and the handover
 
-```sh
-tofu apply
-```
+Run **Bootstrap** again with phase `all`. The apply blocks on ACM
+certificate issuance, so a finished run is a working TLS endpoint. Its
+summary lists the handover, verbatim:
 
-The apply blocks on ACM certificate issuance, so a finished apply is a
-working TLS endpoint. Verify the page on the `distribution_domain` output
-before DNS points anywhere. The first apply runs locally with admin
-credentials because it creates the OIDC roles CI will later assume — CI
-cannot bootstrap its own trust.
-
-## 6. Hand CI the wheel
-
-With the two `TF_VAR` secrets still exported:
-
-```sh
-bin/ci-handover.sh
-```
-
-It prints every name and value to paste into GitHub: the repository
-secrets (`GRAFANA_CLOUD_TOKENS`, `STATE_PASSPHRASE`) and the role-ARN
-repository variables (`PLAN_ROLE_ARN`, `APPLY_ROLE_ARN`, from the apply's
-outputs). Secrets sit at repository level because the plan and drift jobs
-run outside any environment. The `production` environment needs no
-creating — GitHub creates it when the first apply job references it; once
-it appears, restrict its deployment branches to master, which is what
-makes the apply role's environment-bound trust mean master only.
+- the repository variable `PLAN_ROLE_ARN`;
+- restrict the `production` environment's deployment branches to master
+  (GitHub created the environment when the bootstrap referenced it; the
+  restriction is what makes the apply role's environment-bound trust mean
+  master only);
+- the CloudFront hostname to verify the page and certificate on, before
+  DNS points anywhere.
 
 From then on: PRs get a plan comment, master pushes apply.
 
@@ -177,3 +149,23 @@ git -C serverless-status diff <old tag>..<new tag> -- template/
 ```
 
 Your `*.tfvars` files are never the template's to touch.
+
+## Working locally
+
+For debugging a bootstrap phase, or plans outside CI: `bin/tofu.sh` runs
+OpenTofu in a container at exactly the version the pinned release's CI
+tested — nothing installs on the host. Alias it once per shell; `TF_VAR_*`
+and `AWS_*` variables pass through, and `~/.aws` mounts read-only:
+
+```sh
+alias tofu="$PWD/bin/tofu.sh"
+export TF_VAR_grafana_cloud_tokens='{ example = "<provisioning token>" }'
+export TF_VAR_state_passphrase=<the stored passphrase>
+export AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=...   # or AWS_PROFILE
+
+(cd bootstrap && tofu init && tofu apply -var-file=../state.auto.tfvars)
+tofu init -backend-config=state.auto.tfvars
+tofu apply -target=module.checks_example    # step zero, one per org
+tofu apply
+bin/ci-handover.sh                          # prints the handover values
+```

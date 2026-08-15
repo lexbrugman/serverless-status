@@ -108,6 +108,9 @@ data "aws_iam_policy_document" "apply_assume" {
   }
 }
 
+# The name is the adoption contract: the bootstrap workflow imports the
+# console-created role by exactly this name, after which this trust policy
+# replaces the hand-made one.
 resource "aws_iam_role" "apply" {
   name               = "serverless-status-apply"
   assume_role_policy = data.aws_iam_policy_document.apply_assume.json

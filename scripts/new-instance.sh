@@ -41,25 +41,20 @@ fi
 cat <<EOF
 Instance created in $target, pinned to ${tag}.
 
-Next steps:
-  1. Make it a repository: git init (skip if the target was a clone).
-  2. alias tofu="\$PWD/bin/tofu.sh" — the pinned OpenTofu in a
-     container; nothing installs on the host.
-  3. Fill in the *.tfvars data files; the state bucket name appears
-     once, in state.auto.tfvars.
-  4. Secrets: the provisioning token comes from Grafana Cloud; the state
-     passphrase is created here, once — generate it and store it in your
-     password manager before exporting (every future plan and apply needs
-     the same value):
+Next steps (no local tooling needed — CI bootstraps over OIDC):
+  1. Make it a repository: git init (skip if the target was a clone),
+     add your private remote, push.
+  2. Fill in the *.tfvars data files; the state bucket name appears
+     once, in state.auto.tfvars. Commit and push.
+  3. In the IAM console: create the GitHub OIDC provider and a
+     Web-identity role for this repository (branch filter empty),
+     AdministratorAccess, named exactly serverless-status-apply.
+  4. In GitHub: variable APPLY_ROLE_ARN; secrets GRAFANA_CLOUD_TOKENS
+     (per-org map) and STATE_PASSPHRASE — generate it into your password
+     manager first:
        head -c 24 /dev/urandom | base64
-       export TF_VAR_grafana_cloud_tokens='{ example = "..." }'
-       export TF_VAR_state_passphrase=...
-  5. Create the state bucket, then commit its state file:
-       (cd bootstrap && tofu init && tofu apply -var-file=../state.auto.tfvars)
-  6. tofu init -backend-config=state.auto.tfvars
-  7. Step zero — apply the SMTP checks alone and verify port-25 egress and
-     the stored dialogue order before anything else:
-       tofu apply -target=module.checks_example
-  8. After the full apply, hand CI the wheel: bin/ci-handover.sh
+  5. Run the Bootstrap workflow, phase: checks — then verify step zero
+     in the Grafana console (port-25 egress, STARTTLS dialogue order).
+  6. Run Bootstrap again, phase: all — its summary lists the handover.
 See docs/setup-guide.md in the public repository for the full walkthrough.
 EOF
