@@ -43,12 +43,22 @@ you cloned. Everything from here on happens inside the instance. Fill in:
   backend block cannot read variables, so the name is a literal in three
   places).
 
-Set the two secrets in your shell (never in a file):
+Set the two secrets in your shell (never in a file). The provisioning
+token is the one from step 1. The state passphrase is a secret you create
+right here: it encrypts the state client-side, and every future plan and
+apply — yours and CI's — needs this exact value. Generate it once, store
+it in your password manager, and only then export it (it returns in step 6
+as the `STATE_PASSPHRASE` environment secret):
 
 ```sh
+head -c 24 /dev/urandom | base64        # the passphrase — store it first
 export TF_VAR_grafana_cloud_token=<provisioning token>
-export TF_VAR_state_passphrase=<16+ characters>
+export TF_VAR_state_passphrase=<the stored passphrase>
 ```
+
+Losing the passphrase means losing the state: encryption is enforced, so an
+unreadable state has no recovery path short of importing every resource
+into a fresh one.
 
 ## 3. State bucket
 

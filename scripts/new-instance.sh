@@ -45,8 +45,13 @@ Next steps:
   1. Make it a repository: git init (skip if the target was a clone).
   2. Fill in main.tf, ci.tf, and checks.auto.tfvars, and pick a state
      bucket name (replace CHANGE-ME-state-bucket everywhere it appears).
-  3. export TF_VAR_grafana_cloud_token=...   (provisioning token)
-     export TF_VAR_state_passphrase=...      (state encryption, >= 16 chars)
+  3. Secrets: the provisioning token comes from Grafana Cloud; the state
+     passphrase is created here, once — generate it and store it in your
+     password manager before exporting (every future plan and apply needs
+     the same value):
+       head -c 24 /dev/urandom | base64
+       export TF_VAR_grafana_cloud_token=...
+       export TF_VAR_state_passphrase=...
   4. Create the state bucket, then commit its state file:
        (cd bootstrap && tofu init && tofu apply)
   5. tofu init

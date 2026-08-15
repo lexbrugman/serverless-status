@@ -5,7 +5,7 @@ variable "grafana_cloud_token" {
 }
 
 variable "state_passphrase" {
-  description = "Client-side state encryption passphrase (>= 16 characters). Supplied as TF_VAR_state_passphrase."
+  description = "Client-side state encryption passphrase — created once at setup (>= 16 characters), kept in a password manager, supplied as TF_VAR_state_passphrase. Every plan and apply needs the same value; a lost passphrase is unrecoverable state."
   type        = string
   sensitive   = true
 }

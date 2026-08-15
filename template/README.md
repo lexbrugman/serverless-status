@@ -22,6 +22,7 @@ The short version:
    OIDC roles CI will later assume):
 
    ```sh
+   head -c 24 /dev/urandom | base64   # the passphrase — store it, CI needs it too
    export TF_VAR_grafana_cloud_token=... TF_VAR_state_passphrase=...
    tofu init
    tofu apply -target=module.checks   # step zero: SMTP checks first
