@@ -1,0 +1,57 @@
+name: Run Bootstrap
+
+# Creates the state bucket, adopts the hand-made trust, then applies the
+# requested phase — checks only (step zero), or everything plus the
+# handover summary. Every step is idempotent, so a failed run is re-run,
+# not repaired.
+on:
+  workflow_call:
+    inputs:
+      phase:
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  id-token: write
+
+env:
+  TF_VAR_grafana_cloud_tokens: ${{ secrets.GRAFANA_CLOUD_TOKENS }}
+  TF_VAR_state_passphrase: ${{ secrets.STATE_PASSPHRASE }}
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # The role's managed trust accepts only runs bound to this environment.
+    environment: production
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up pinned tofu
+        uses: ./.github/actions/setup-tofu
+
+      - name: Show the token identity
+        run: bin/ci-token-identity.sh
+
+      - name: Assume the apply role
+        uses: aws-actions/configure-aws-credentials@v6.2.3
+        with:
+          role-to-assume: ${{ vars.APPLY_ROLE_ARN }}
+          aws-region: eu-west-1
+
+      - name: Create the state bucket
+        run: bin/ci-create-state-bucket.sh
+
+      - name: Adopt the hand-made trust
+        run: bin/ci-adopt-trust.sh
+
+      - name: Apply the checks (step zero)
+        if: inputs.phase == 'checks'
+        run: bin/ci-bootstrap-checks.sh
+
+      - name: Apply everything
+        if: inputs.phase == 'all'
+        run: bin/ci-bootstrap-all.sh

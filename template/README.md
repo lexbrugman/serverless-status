@@ -4,41 +4,40 @@ The private root for a [serverless-status](https://github.com/lexbrugman/serverl
 page. Day-to-day changes happen in `checks.auto.tfvars`; everything else is
 setup.
 
-## Bootstrap
+## Setup
 
 The full walkthrough lives in the public repository's `docs/setup-guide.md`.
-`bin/tofu.sh` is the pinned OpenTofu in a container — alias it once per
-shell (`alias tofu="$PWD/bin/tofu.sh"`) and nothing installs on the host.
-The short version:
+The short version — no local tooling beyond git and a browser:
 
 1. **Grafana Cloud** — create the stack; create a provisioning access policy
    and token (scopes `accesspolicies:read|write|delete`, `stacks:read`),
-   with an expiry.
+   with an expiry, per organisation.
 2. **Fill in the data files** — `instance.auto.tfvars` (identity and
    orgs), `state.tfbackend` (the bucket name, stated once), and
    `checks.auto.tfvars` (every check names its org). Your values live only
    in the data files; your structure lives only in `org_<key>.tf` (copy
    `org_example.tf` per Grafana account) and `page.tf`. Everything else —
-   `wiring/` and the root files marked "do not edit" — is logic a template
-   update overwrites.
-3. **State bucket** — `cd bootstrap && tofu init && tofu apply
-   `, then
-   commit the resulting `terraform.tfstate` (bucket metadata only, no
-   secrets).
-4. **First apply runs locally** with admin credentials (it creates the
-   OIDC roles CI will later assume):
+   `wiring/`, `bin/`, the workflows, and the root files marked "do not
+   edit" — is logic a sync overwrites.
+3. **OIDC trust, by hand once** — create the GitHub OIDC provider and an
+   admin role named `serverless-status-apply` in the AWS console; set the
+   `APPLY_ROLE_ARN` variable and the `GRAFANA_CLOUD_TOKENS` and
+   `STATE_PASSPHRASE` secrets in GitHub.
+4. **Bootstrap from CI** — run the **Bootstrap** workflow: phase `checks`
+   first (step zero: watch `probe_success` in Grafana and verify the
+   stored SMTP dialogue order), then phase `all`. Its summary lists the
+   handover; setting `PLAN_ROLE_ARN` switches routine CI on. From then on,
+   PRs get a plan comment and master pushes apply.
 
-   ```sh
-   head -c 24 /dev/urandom | base64   # the passphrase — store it, CI needs it too
-   export TF_VAR_grafana_cloud_tokens='{ example = "..." }' TF_VAR_state_passphrase=...
-   tofu init -backend-config=state.tfbackend
-   tofu apply -target=module.checks_example   # step zero: SMTP checks first
-   ```
+## Upgrades
 
-   Watch `probe_success` in Grafana to confirm the probes egress port 25,
-   and verify the stored SMTP dialogue order, before applying the rest.
-5. **Hand CI the wheel** — `bin/ci-handover.sh` (`TF_VAR` secrets still
-   exported) prints every name and value to paste into GitHub: repository
-   secrets and role-ARN variables. The `production` environment appears on
-   the first master push; restrict its deployment branches to master. From
-   then on, master pushes apply.
+Renovate PRs bump the pinned release ref; CI rebuilds the template-owned
+files from that release onto the same branch (`bin/sync.sh`), and the plan
+comment reviews the result. Your data files, org set, and state always
+survive a sync.
+
+## Working locally
+
+For debugging only: `bin/tofu.sh` runs the release-pinned OpenTofu in a
+container — alias it once per shell (`alias tofu="$PWD/bin/tofu.sh"`) and
+nothing installs on the host.

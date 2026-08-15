@@ -30,8 +30,11 @@ require_found "shell scripts" "${#shell_scripts[@]}"
 mapfile -t python_files < <(discover '*.py')
 require_found "Python files" "${#python_files[@]}"
 
-mapfile -t workflows < <(discover '.github/workflows/*.yml' 'template/.github/workflows/*.yml')
+mapfile -t workflows < <(discover '.github/workflows/*.yml')
 require_found "workflow files" "${#workflows[@]}"
+
+mapfile -t template_workflows < <(discover 'template/.github/workflows/*.yml')
+require_found "template workflow files" "${#template_workflows[@]}"
 
 echo "shellcheck (${#shell_scripts[@]} scripts)"
 shellcheck "${shell_scripts[@]}"
@@ -47,6 +50,16 @@ ruff format --no-cache --check "${python_files[@]}"
 
 echo "actionlint (${#workflows[@]} workflows)"
 actionlint "${workflows[@]}"
+
+# Reusable-workflow paths resolve from the nearest .git root, which for the
+# template's workflows is an instance root — so the template is staged as
+# one for linting.
+echo "actionlint (${#template_workflows[@]} template workflows)"
+staged="$(mktemp -d)"
+cp -R template/. "$staged/"
+git -C "$staged" init --quiet
+(cd "$staged" && actionlint)
+rm -rf "$staged"
 
 echo "tofu fmt -check -recursive"
 tofu fmt -check -recursive

@@ -1,0 +1,38 @@
+name: Apply
+
+# Applies the main root from the protected production environment; the
+# page footer is stamped with the pinned release.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  TF_VAR_grafana_cloud_tokens: ${{ secrets.GRAFANA_CLOUD_TOKENS }}
+  TF_VAR_state_passphrase: ${{ secrets.STATE_PASSPHRASE }}
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # The apply role's managed trust accepts only runs bound to this
+    # environment.
+    environment: production
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up pinned tofu
+        uses: ./.github/actions/setup-tofu
+
+      - name: Assume the apply role
+        uses: aws-actions/configure-aws-credentials@v6.2.3
+        with:
+          role-to-assume: ${{ vars.APPLY_ROLE_ARN }}
+          aws-region: eu-west-1
+
+      - name: Apply
+        run: bin/ci-apply.sh

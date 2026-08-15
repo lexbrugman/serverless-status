@@ -1,0 +1,34 @@
+name: Drift
+
+# Plans both roots read-only; any difference fails the run.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  TF_VAR_grafana_cloud_tokens: ${{ secrets.GRAFANA_CLOUD_TOKENS }}
+  TF_VAR_state_passphrase: ${{ secrets.STATE_PASSPHRASE }}
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up pinned tofu
+        uses: ./.github/actions/setup-tofu
+
+      - name: Assume the plan role
+        uses: aws-actions/configure-aws-credentials@v6.2.3
+        with:
+          role-to-assume: ${{ vars.PLAN_ROLE_ARN }}
+          aws-region: eu-west-1
+
+      - name: Detect drift
+        run: bin/ci-drift.sh

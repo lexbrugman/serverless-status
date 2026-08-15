@@ -152,20 +152,24 @@ free second opinion.
 
 ## 8. Upgrading
 
-Module upgrades arrive on their own: the instance's Renovate opens a PR
-bumping the pinned `?ref=`, and the plan comment is the review. The copied
-scaffolding follows the file classes: on a ref bump that crosses template
-changes, overwrite the logic wholesale — `wiring/`, the root `.tf` files
-marked "do not edit", `bootstrap/main.tf`, the workflows, and `bin/` — from
-the new template; they carry none of your values and none of the module
-pins. Then diff `org_example.tf` and `page.tf` for pattern changes to port
-into your copies:
+Upgrades run themselves: the instance's Renovate opens a PR bumping the
+pinned `?ref=`, and CI notices the bump and rebuilds everything the
+template owns from that release, committed onto the same branch as "Sync
+instance to <ref>". The plan comment then reviews the synced tree — the
+tree the merge applies.
 
-```sh
-git -C serverless-status diff <old tag>..<new tag> -- template/
-```
+The rebuild is `bin/sync.sh`. Logic files are replaced wholesale (which
+also removes files the release dropped); `org_<key>.tf` and `page.tf`
+regenerate from the release's stencil over your existing org set — which
+is why org files must stay stencil-pure: hand edits to them do not
+survive a sync, and belong in the data files or upstream. Your data
+files, the state and lock files, and anything you added outside the
+template-owned classes are never touched.
 
-Your data files are never the template's to touch.
+One case needs a hand: when a release changes the workflow files
+themselves, CI cannot push those (GitHub withholds workflow-write from
+its own token) and the plan job fails saying so. Run `bin/sync.sh` on the
+Renovate branch locally — it needs only git and sed — and push.
 
 ## Working locally
 

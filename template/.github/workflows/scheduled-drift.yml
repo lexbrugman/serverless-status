@@ -9,41 +9,12 @@ on:
 permissions:
   contents: read
 
-env:
-  TF_VAR_grafana_cloud_tokens: ${{ secrets.GRAFANA_CLOUD_TOKENS }}
-  TF_VAR_state_passphrase: ${{ secrets.STATE_PASSPHRASE }}
-
 jobs:
   drift:
     # Skips until the bootstrap handover sets PLAN_ROLE_ARN.
     if: vars.PLAN_ROLE_ARN != ''
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
     permissions:
       contents: read
       id-token: write
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7.0.1
-
-      - name: Set up pinned tofu
-        uses: ./.github/actions/setup-tofu
-
-      - name: Assume the plan role
-        uses: aws-actions/configure-aws-credentials@v6.2.3
-        with:
-          role-to-assume: ${{ vars.PLAN_ROLE_ARN }}
-          aws-region: eu-west-1
-
-      - name: Detect drift
-        run: |
-          set -euo pipefail
-          tofu init -input=false -backend-config=state.tfbackend
-          tofu plan -input=false -detailed-exitcode
-
-      - name: Detect bootstrap drift
-        run: |
-          set -euo pipefail
-          tofu -chdir=bootstrap init -input=false
-          tofu -chdir=bootstrap plan -input=false -detailed-exitcode
+    secrets: inherit
+    uses: ./.github/workflows/drift.yml

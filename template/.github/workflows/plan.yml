@@ -1,0 +1,52 @@
+name: Plan
+
+# Syncs the instance when the PR bumps the pinned release, then plans the
+# result and posts it as the PR's review comment.
+on:
+  workflow_call:
+
+permissions:
+  contents: write
+  id-token: write
+  pull-requests: write
+
+env:
+  TF_VAR_grafana_cloud_tokens: ${{ secrets.GRAFANA_CLOUD_TOKENS }}
+  TF_VAR_state_passphrase: ${{ secrets.STATE_PASSPHRASE }}
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # The branch tip, not the merge commit: the sync commit must land on
+      # the branch itself.
+      - name: Check out repository
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Sync the instance when the pinned release changed
+        env:
+          BASE_BRANCH: ${{ github.base_ref }}
+          HEAD_BRANCH: ${{ github.head_ref }}
+        run: bin/ci-sync.sh
+
+      - name: Set up pinned tofu
+        uses: ./.github/actions/setup-tofu
+
+      - name: Assume the plan role
+        uses: aws-actions/configure-aws-credentials@v6.2.3
+        with:
+          role-to-assume: ${{ vars.PLAN_ROLE_ARN }}
+          aws-region: eu-west-1
+
+      - name: Plan
+        run: bin/ci-plan.sh
+
+      - name: Comment the plan on the PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: bin/ci-comment-plan.sh
