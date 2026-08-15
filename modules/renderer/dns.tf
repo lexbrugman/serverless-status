@@ -13,14 +13,17 @@ locals {
   }
 }
 
+# Keyed by var.domain, never by the certificate's computed attributes: an
+# import expands every resource without planning the certificate, so
+# computed keys would make the whole graph unresolvable there.
 resource "aws_route53_record" "validation" {
-  for_each = var.manage_dns ? local.validation_options : {}
+  for_each = var.manage_dns ? toset([var.domain]) : toset([])
 
   zone_id = data.aws_route53_zone.page[0].zone_id
-  name    = each.value.resource_record_name
-  type    = each.value.resource_record_type
+  name    = local.validation_options[each.value].resource_record_name
+  type    = local.validation_options[each.value].resource_record_type
   ttl     = 300
-  records = [each.value.resource_record_value]
+  records = [local.validation_options[each.value].resource_record_value]
 }
 
 resource "aws_route53_record" "alias" {
