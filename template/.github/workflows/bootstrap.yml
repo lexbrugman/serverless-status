@@ -49,6 +49,16 @@ jobs:
       - name: Set up pinned tofu
         uses: ./.github/actions/setup-tofu
 
+      # The hand-made trust must match these exact claims; printing them
+      # turns a refused assume from archaeology into a diff.
+      - name: Show the token identity
+        run: |
+          set -euo pipefail
+          curl -sH "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" \
+            | jq -r '.value' | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null \
+            | jq '{iss, aud, sub}'
+
       - name: Assume the apply role
         uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
