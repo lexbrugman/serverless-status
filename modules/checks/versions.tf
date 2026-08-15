@@ -11,5 +11,9 @@ terraform {
       # cannot own without a provider-configuration cycle.
       configuration_aliases = [grafana.cloud, grafana.sm]
     }
+    http = {
+      source  = "hashicorp/http"
+      version = ">= 3.4"
+    }
   }
 }

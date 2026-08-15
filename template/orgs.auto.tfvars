@@ -5,5 +5,9 @@
 orgs = {
   example = {
     stack_slug = "examplecorp"
+
+    # Synthetic Monitoring executions per month this account may spend —
+    # the allowance its plan includes, or the overage its owner accepts.
+    monthly_execution_budget = 90000
   }
 }

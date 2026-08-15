@@ -53,9 +53,11 @@ contradictory at worst; string-parsing a URL back apart is not validation.
 Every invalid combination is rejected at plan time with a message that
 states the fix.
 
-The checks module also enforces a monthly execution budget against the
-Grafana Cloud free tier as a plan-time precondition; an over-budget check
-set fails the plan naming the largest consumers.
+The checks module enforces each account's declared monthly execution
+budget as a plan-time precondition — an over-budget check set fails the
+plan naming the largest consumers — and reads the tenant's check quota from
+the Synthetic Monitoring API, failing the plan when the configuration
+exceeds what the account allows.
 
 ## Site and page
 

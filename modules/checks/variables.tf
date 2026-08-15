@@ -61,7 +61,17 @@ variable "probe_locations" {
 }
 
 variable "monthly_execution_budget" {
-  description = "Hard plan-time ceiling on computed Synthetic Monitoring executions per month (Grafana Cloud free tier: 100000; the default keeps headroom because the arithmetic models Grafana's accounting rather than contracting with it)."
+  description = "Hard plan-time ceiling on computed Synthetic Monitoring executions per month for this account — the allowance its plan includes, or the spend its owner accepts. Grafana exposes no API for this number, so it is declared; the arithmetic models Grafana's accounting rather than contracting with it, so keep headroom."
   type        = number
-  default     = 90000
+}
+
+variable "sm_api_url" {
+  description = "The stack's Synthetic Monitoring API URL (the installation's stack_sm_api_url); the tenant's quotas are read from it at plan time."
+  type        = string
+}
+
+variable "sm_access_token" {
+  description = "Synthetic Monitoring access token (the installation's sm_access_token), for the tenant quota lookup."
+  type        = string
+  sensitive   = true
 }

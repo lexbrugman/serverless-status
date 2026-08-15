@@ -1,10 +1,10 @@
 # Architecture
 
-A serverless status page on a custom domain, free-tier all the way down:
-Grafana Cloud runs the probes, AWS renders and serves the page.
+A serverless status page on a custom domain: Grafana Cloud runs the
+probes, AWS renders and serves the page from its always-free tiers.
 
 ```
-Grafana Cloud (free)                AWS (always-free)
+Grafana Cloud                       AWS (always-free)
 ┌──────────────────────┐            ┌────────────────────────┐
 │ Synthetic Monitoring │            │ EventBridge Scheduler  │
 │  https · ping · smtp │            │        │ 1/min         │
@@ -43,7 +43,7 @@ execution-budget precondition, its metrics-read access policy, and emits
 `check_manifest` — the seam. `modules/renderer` (AWS leg) owns the page
 identity and everything that renders and serves; it takes a *list* of check
 manifests and a list of Prometheus sources, so one page can consolidate
-several Grafana accounts — each with its own billing and free-tier budget,
+several Grafana accounts — each with its own billing and execution budget,
 e.g. one per child organisation. At plan time it asserts every manifest's
 `schema_version` and that no check key collides across stacks; at render
 time the handler queries every source and merges by job.

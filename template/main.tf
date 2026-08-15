@@ -91,8 +91,12 @@ module "checks_example" {
     grafana.sm    = grafana.example_sm
   }
 
-  stack_slug = var.orgs["example"].stack_slug
-  checks     = local.org_checks["example"]
+  stack_slug               = var.orgs["example"].stack_slug
+  checks                   = local.org_checks["example"]
+  monthly_execution_budget = var.orgs["example"].monthly_execution_budget
+
+  sm_api_url      = grafana_synthetic_monitoring_installation.example.stack_sm_api_url
+  sm_access_token = grafana_synthetic_monitoring_installation.example.sm_access_token
 
   depends_on = [grafana_synthetic_monitoring_installation.example]
 }

@@ -7,6 +7,45 @@ data "grafana_synthetic_monitoring_probes" "main" {
   provider = grafana.sm
 }
 
+# The quota Grafana will actually enforce, read from the tenant itself so
+# the plan checks this account's own numbers, not an assumption. (The
+# monthly execution allowance has no API anywhere — that one stays a
+# declared budget.)
+data "http" "sm_tenant" {
+  url = "${var.sm_api_url}/api/v1/tenant"
+
+  request_headers = {
+    Authorization = "Bearer ${var.sm_access_token}"
+  }
+
+  retry {
+    attempts = 2
+  }
+}
+
+locals {
+  sm_tenant = try(jsondecode(data.http.sm_tenant.response_body), {})
+  # A tenant without a published limit skips the comparison; the API stays
+  # the authority at apply.
+  tenant_max_checks = try(local.sm_tenant.limits.maxChecks, 0)
+}
+
+resource "terraform_data" "tenant_quota" {
+  input = local.tenant_max_checks
+
+  lifecycle {
+    precondition {
+      condition     = data.http.sm_tenant.status_code == 200
+      error_message = "tenant lookup at ${var.sm_api_url}/api/v1/tenant returned status ${data.http.sm_tenant.status_code} — the quota check needs a readable tenant."
+    }
+
+    precondition {
+      condition     = local.tenant_max_checks <= 0 || length(var.checks) <= local.tenant_max_checks
+      error_message = "${length(var.checks)} checks configured, but this account's tenant allows ${local.tenant_max_checks}. Remove checks or raise the account's limit."
+    }
+  }
+}
+
 # A typo'd location must fail the plan with the available names, not a bare
 # missing-key error somewhere in a resource.
 resource "terraform_data" "probe_locations" {

@@ -1,5 +1,5 @@
-# The free-tier execution budget is an invariant, not a drift signal, so it
-# is a precondition that hard-fails the plan — a `check` block would let an
+# The execution budget is an invariant, not a drift signal, so it is a
+# precondition that hard-fails the plan — a `check` block would let an
 # over-budget configuration sail past with a yellow warning.
 locals {
   # 43200 = minutes per 30-day month, times one execution per probe location.
@@ -21,7 +21,7 @@ resource "terraform_data" "execution_budget" {
     precondition {
       condition = local.monthly_executions <= var.monthly_execution_budget
       error_message = join("\n", [
-        "monthly Synthetic Monitoring executions: ${local.monthly_executions} — exceeds budget of ${var.monthly_execution_budget} (Grafana Cloud free tier: 100000).",
+        "monthly Synthetic Monitoring executions: ${local.monthly_executions} — exceeds this account's budget of ${var.monthly_execution_budget}.",
         "Largest consumers: ${join(", ", local.largest_consumers)}.",
         "Raise frequency_minutes, drop a probe location, or raise monthly_execution_budget.",
       ])

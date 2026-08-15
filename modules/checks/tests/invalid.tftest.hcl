@@ -5,6 +5,16 @@ mock_provider "grafana" {
   alias = "cloud"
 }
 
+mock_provider "http" {}
+
+override_data {
+  target = data.http.sm_tenant
+  values = {
+    status_code   = 200
+    response_body = "{\"limits\":{\"maxChecks\":100}}"
+  }
+}
+
 mock_provider "grafana" {
   alias = "sm"
 }
@@ -27,7 +37,10 @@ override_data {
 }
 
 variables {
-  stack_slug = "examplecorp"
+  stack_slug               = "examplecorp"
+  monthly_execution_budget = 90000
+  sm_api_url               = "https://sm.example"
+  sm_access_token          = "mock-sm-token"
 
   checks = {
     website = {

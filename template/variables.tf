@@ -1,7 +1,8 @@
 variable "orgs" {
-  description = "The Grafana Cloud accounts feeding this page, keyed by a stable org identifier — one account per organisation, each keeping its own billing and free-tier budget. Provider configurations cannot be created dynamically, so each key also has one copied per-org block in providers.tf and main.tf."
+  description = "The Grafana Cloud accounts feeding this page, keyed by a stable org identifier — one account per organisation, each keeping its own billing and execution budget. Provider configurations cannot be created dynamically, so each key also has one copied per-org block in providers.tf and main.tf."
   type = map(object({
-    stack_slug = string
+    stack_slug               = string
+    monthly_execution_budget = number
   }))
 }
 

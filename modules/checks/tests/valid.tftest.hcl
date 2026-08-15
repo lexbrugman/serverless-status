@@ -6,6 +6,16 @@ mock_provider "grafana" {
   alias = "cloud"
 }
 
+mock_provider "http" {}
+
+override_data {
+  target = data.http.sm_tenant
+  values = {
+    status_code   = 200
+    response_body = "{\"limits\":{\"maxChecks\":100}}"
+  }
+}
+
 mock_provider "grafana" {
   alias = "sm"
 }
@@ -28,7 +38,10 @@ override_data {
 }
 
 variables {
-  stack_slug = "examplecorp"
+  stack_slug               = "examplecorp"
+  monthly_execution_budget = 90000
+  sm_api_url               = "https://sm.example"
+  sm_access_token          = "mock-sm-token"
 
   checks = {
     api = {
@@ -165,4 +178,44 @@ run "unknown_probe_location_fails_the_plan" {
   }
 
   expect_failures = [terraform_data.probe_locations]
+}
+
+run "checks_beyond_the_tenant_quota_fail_the_plan" {
+  command = plan
+
+  override_data {
+    target = data.http.sm_tenant
+    values = {
+      status_code   = 200
+      response_body = "{\"limits\":{\"maxChecks\":2}}"
+    }
+  }
+
+  expect_failures = [terraform_data.tenant_quota]
+}
+
+run "tenant_without_published_limits_passes" {
+  command = plan
+
+  override_data {
+    target = data.http.sm_tenant
+    values = {
+      status_code   = 200
+      response_body = "{\"limits\":null}"
+    }
+  }
+}
+
+run "unreadable_tenant_fails_the_plan" {
+  command = plan
+
+  override_data {
+    target = data.http.sm_tenant
+    values = {
+      status_code   = 401
+      response_body = "unauthorized"
+    }
+  }
+
+  expect_failures = [terraform_data.tenant_quota]
 }

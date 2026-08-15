@@ -1,19 +1,19 @@
 # Setup guide
 
 From nothing to a live status page. Prerequisites: a Grafana Cloud account
-(free tier), an AWS account, a Route 53 hosted zone for the parent domain,
-and a GitHub repository for your private instance.
+per organisation, an AWS account, a Route 53 hosted zone for the parent
+domain, and a GitHub repository for your private instance.
 
 ## 1. Grafana Cloud
 
-1. Create a stack (the free tier includes Synthetic Monitoring).
+1. Create a stack (Synthetic Monitoring is part of every stack).
 2. Create an access policy with scopes `accesspolicies:read`,
    `accesspolicies:write`, `accesspolicies:delete`, `stacks:read`, and a
    token for it — **with an expiry**. This is the provisioning credential;
    it is the only Grafana secret that ever leaves Grafana, and it lives
    solely in `TF_VAR_grafana_cloud_tokens`, keyed by org. Repeat per
    organisation when several accounts feed one page: each org keeps its own
-   account, billing, and free-tier budget.
+   account, billing, and execution budget.
 
 ## 2. The instance
 

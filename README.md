@@ -26,10 +26,11 @@ choice. The page:
 - depends on nothing external to display: inline CSS and SVG, system fonts,
   no CDN, no analytics. Enforced by tests.
 
-Free-tier arithmetic: Grafana Cloud Synthetic Monitoring (100k executions /
-month, budget-checked at plan time) and the Lambda + DynamoDB + CloudFront
-always-free tiers. The only optional cost is ~$1/month if you upgrade state
-encryption to KMS.
+The arithmetic: each Grafana account's execution budget is declared and
+enforced at plan time, its tenant quotas are read from the account's own
+API, and rendering sits inside the Lambda + DynamoDB + CloudFront
+always-free tiers. The only optional AWS cost is ~$1/month for the KMS
+state-encryption upgrade.
 
 ## Getting started
 
