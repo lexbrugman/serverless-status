@@ -45,7 +45,9 @@ def aws(prom_server, monkeypatch):
         boto3.client("ssm").put_parameter(
             Name=PARAM,
             Type="SecureString",
-            Value=json.dumps({"query_url": f"http://127.0.0.1:{port}", "user": "u", "token": "t"}),
+            Value=json.dumps(
+                [{"query_url": f"http://127.0.0.1:{port}", "user": "u", "token": "t"}]
+            ),
         )
         monkeypatch.setenv("TABLE_NAME", TABLE)
         monkeypatch.setenv("BUCKET_NAME", BUCKET)
@@ -84,7 +86,7 @@ class TestHappyPath:
 
     def test_warm_invocation_reuses_credentials_and_manifest(self, aws):
         handler.render_handler({}, None)
-        assert "credentials" in handler._cache
+        assert "sources" in handler._cache
         handler.render_handler({}, None)
         tbl = store.table(TABLE)
         today = datetime.now(UTC).date().isoformat()
@@ -161,3 +163,44 @@ class TestDegraded:
         result = handler.render_handler({}, None)
         assert result["degraded"] is False
         assert result["overall"] == "operational"
+
+
+class TestMultipleSources:
+    def test_sources_merge_by_job(self, aws, prom_server, monkeypatch):
+        second = mock_prometheus.serve("all-green", 0)
+        try:
+            ports = (prom_server.server_address[1], second.server_address[1])
+            boto3.client("ssm").put_parameter(
+                Name=PARAM,
+                Type="SecureString",
+                Overwrite=True,
+                Value=json.dumps(
+                    [
+                        {"query_url": f"http://127.0.0.1:{p}", "user": "u", "token": "t"}
+                        for p in ports
+                    ]
+                ),
+            )
+            handler._cache.clear()
+            result = handler.render_handler({}, None)
+        finally:
+            second.shutdown()
+        assert result["degraded"] is False
+        assert result["overall"] == "operational"
+
+    def test_any_failing_source_degrades_the_whole_render(self, aws, prom_server, monkeypatch):
+        port = prom_server.server_address[1]
+        boto3.client("ssm").put_parameter(
+            Name=PARAM,
+            Type="SecureString",
+            Overwrite=True,
+            Value=json.dumps(
+                [
+                    {"query_url": f"http://127.0.0.1:{port}", "user": "u", "token": "t"},
+                    {"query_url": "http://127.0.0.1:9", "user": "u", "token": "t"},
+                ]
+            ),
+        )
+        handler._cache.clear()
+        result = handler.render_handler({}, None)
+        assert result["degraded"] is True

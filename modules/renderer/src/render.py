@@ -180,8 +180,6 @@ def render_page(state: dict) -> str:
 
     groups = []
     for group in state["groups"]:
-        if not group["checks"]:
-            continue
         rows = "".join(_row(check, page) for check in group["checks"])
         groups.append(
             f'<section class="group"><h3>{_esc(group["name"])}</h3>'

@@ -38,10 +38,15 @@ state, and S3 native locking removes the lock table.
 
 ## The modules
 
-`modules/checks` (Grafana leg) owns the probes, the execution-budget
-precondition, the metrics-read access policy, and emits `page_manifest` —
-the seam. `modules/renderer` (AWS leg) asserts the manifest's
-`schema_version` at plan time and owns everything that renders and serves.
+`modules/checks` (Grafana leg) owns one stack's probes, its
+execution-budget precondition, its metrics-read access policy, and emits
+`check_manifest` — the seam. `modules/renderer` (AWS leg) owns the page
+identity and everything that renders and serves; it takes a *list* of check
+manifests and a list of Prometheus sources, so one page can consolidate
+several Grafana accounts — each with its own billing and free-tier budget,
+e.g. one per child organisation. At plan time it asserts every manifest's
+`schema_version` and that no check key collides across stacks; at render
+time the handler queries every source and merges by job.
 
 Modules create only what they own the entire lifecycle of and read
 everything that predates them: the Grafana stack and the Route 53 zone are

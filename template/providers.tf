@@ -49,19 +49,24 @@ terraform {
   }
 }
 
+# --- per-org providers: example ---------------------------------------------
+# One pair per org key, alongside the org's block in main.tf. The sm
+# credentials come out of that block's installation resource — one apply
+# hands the credential from one control plane to the other, which is the
+# reason this stack is OpenTofu in the first place.
+
 provider "grafana" {
-  alias                     = "cloud"
-  cloud_access_policy_token = var.grafana_cloud_token
+  alias                     = "example_cloud"
+  cloud_access_policy_token = var.grafana_cloud_tokens["example"]
 }
 
-# The Synthetic Monitoring credentials come out of the installation resource
-# in main.tf — one apply hands the credential from one control plane to the
-# other, which is the reason this stack is OpenTofu in the first place.
 provider "grafana" {
-  alias           = "sm"
-  sm_access_token = grafana_synthetic_monitoring_installation.this.sm_access_token
-  sm_url          = grafana_synthetic_monitoring_installation.this.stack_sm_api_url
+  alias           = "example_sm"
+  sm_access_token = grafana_synthetic_monitoring_installation.example.sm_access_token
+  sm_url          = grafana_synthetic_monitoring_installation.example.stack_sm_api_url
 }
+
+# --- end per-org providers ---------------------------------------------------
 
 provider "aws" {
   region = "eu-west-1"

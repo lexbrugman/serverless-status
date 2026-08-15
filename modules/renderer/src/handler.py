@@ -37,11 +37,12 @@ def manifest() -> dict:
     return _cache["manifest"]
 
 
-def prometheus_credentials() -> dict:
+def prometheus_sources() -> list[dict]:
     """From SSM in production; from PROM_ENDPOINT in the local dev stack,
-    which has no SSM. Neither being set is a configuration failure, reported
-    through the degraded path rather than a crash."""
-    if "credentials" not in _cache:
+    which has no SSM. One source per Grafana account feeding the page.
+    Nothing being set is a configuration failure, reported through the
+    degraded path rather than a crash."""
+    if "sources" not in _cache:
         parameter = os.environ.get("PROM_PARAM")
         endpoint = os.environ.get("PROM_ENDPOINT")
         if parameter:
@@ -49,12 +50,12 @@ def prometheus_credentials() -> dict:
 
             ssm = boto3.client("ssm")
             value = ssm.get_parameter(Name=parameter, WithDecryption=True)
-            _cache["credentials"] = json.loads(value["Parameter"]["Value"])
+            _cache["sources"] = json.loads(value["Parameter"]["Value"])
         elif endpoint:
-            _cache["credentials"] = {"query_url": endpoint, "user": "", "token": ""}
+            _cache["sources"] = [{"query_url": endpoint, "user": "", "token": ""}]
         else:
             raise prometheus.PrometheusError("neither PROM_PARAM nor PROM_ENDPOINT is set")
-    return _cache["credentials"]
+    return _cache["sources"]
 
 
 def publish(documents: dict[str, str]) -> None:
@@ -77,16 +78,21 @@ def publish(documents: dict[str, str]) -> None:
 
 
 def query_metrics(now: datetime) -> tuple[dict | None, dict | None, dict | None, bool]:
-    """(success, duration, duration_range, degraded). Any failure yields the
-    degraded render — never a 500, never stale green presented as current."""
+    """(success, duration, duration_range, degraded), merged across every
+    source by job. Any failure anywhere yields the fully degraded render —
+    never a 500, never stale green presented as current, and never history
+    written from a partial picture."""
+    success: dict = {}
+    duration: dict = {}
+    duration_range: dict = {}
     try:
-        credentials = prometheus_credentials()
-        success = prometheus.instant(credentials, prometheus.INSTANT_SUCCESS, now)
-        duration = prometheus.instant(credentials, prometheus.INSTANT_DURATION, now)
-        duration_range = prometheus.latency_range(credentials, now)
+        for source in prometheus_sources():
+            success.update(prometheus.instant(source, prometheus.INSTANT_SUCCESS, now))
+            duration.update(prometheus.instant(source, prometheus.INSTANT_DURATION, now))
+            duration_range.update(prometheus.latency_range(source, now))
         return success, duration, duration_range, False
     except prometheus.PrometheusError as error:
-        _cache.pop("credentials", None)
+        _cache.pop("sources", None)
         print(f"degraded: {error}")
         return None, None, None, True
 

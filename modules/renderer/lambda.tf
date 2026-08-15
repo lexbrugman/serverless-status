@@ -16,7 +16,11 @@ data "archive_file" "lambda" {
 
   source {
     filename = "manifest.json"
-    content  = jsonencode(var.page_manifest)
+    content = jsonencode({
+      site   = var.site
+      page   = var.page
+      checks = local.checks
+    })
   }
 }
 

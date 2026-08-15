@@ -1,19 +1,7 @@
-locals {
-  # Groups ordered by their lowest member order, then name.
-  group_min_order = { for g in distinct([for c in values(var.checks) : c.group]) :
-    g => min([for c in values(var.checks) : c.order if c.group == g]...)
-  }
-  groups_ordered = [for entry in sort([for g, o in local.group_min_order : format("%010d|%s", o, g)]) :
-    split("|", entry)[1]
-  ]
-}
-
-output "page_manifest" {
-  description = "Everything the renderer needs to know about the checks and the page — the seam between the two modules. schema_version exists so a half-merged ref bump fails at plan time, not as a baffling runtime error."
+output "check_manifest" {
+  description = "This stack's checks, resolved, for the renderer — the seam between the modules. A page can merge several stacks' manifests, one per Grafana account. schema_version exists so a half-merged ref bump fails at plan time, not as a baffling runtime error."
   value = {
-    schema_version = 1
-    site           = var.site
-    page           = var.page
+    schema_version = 2
     checks = { for k, c in var.checks : k => {
       display           = c.display
       group             = c.group
@@ -24,7 +12,6 @@ output "page_manifest" {
       order             = c.order
       latency_budget_ms = c.latency_budget_ms
     } }
-    groups = local.groups_ordered
   }
 }
 

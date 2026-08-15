@@ -18,6 +18,18 @@ def check_state(up: bool | None, latency_ms: float | None, budget_ms: float | No
     return "up"
 
 
+def group_order(checks: dict) -> list[str]:
+    """Groups ordered by their lowest member order, then name — derived from
+    the checks themselves, so manifests merged from several stacks need no
+    shared group list."""
+    lowest: dict[str, int] = {}
+    for check in checks.values():
+        order = check.get("order", 50)
+        if check["group"] not in lowest or order < lowest[check["group"]]:
+            lowest[check["group"]] = order
+    return [group for group, _ in sorted(lowest.items(), key=lambda item: (item[1], item[0]))]
+
+
 def overall_state(states: list[str]) -> str:
     known = [s for s in states if s != "unknown"]
     if not known:
@@ -184,7 +196,7 @@ def assemble(
                 key=lambda c: (manifest["checks"][c["key"]].get("order", 50), c["key"]),
             ),
         }
-        for name in manifest["groups"]
+        for name in group_order(manifest["checks"])
     ]
 
     return {

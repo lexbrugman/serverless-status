@@ -3,5 +3,5 @@
 resource "aws_ssm_parameter" "prometheus" {
   name  = local.prometheus_parameter
   type  = "SecureString"
-  value = jsonencode(var.prometheus)
+  value = jsonencode(var.prometheus_sources)
 }

@@ -1,6 +1,13 @@
-variable "grafana_cloud_token" {
-  description = "Provisioning access policy token (scopes: accesspolicies:read|write|delete, stacks:read). Supplied as TF_VAR_grafana_cloud_token; never lands in a file."
-  type        = string
+variable "orgs" {
+  description = "The Grafana Cloud accounts feeding this page, keyed by a stable org identifier — one account per organisation, each keeping its own billing and free-tier budget. Provider configurations cannot be created dynamically, so each key also has one copied per-org block in providers.tf and main.tf."
+  type = map(object({
+    stack_slug = string
+  }))
+}
+
+variable "grafana_cloud_tokens" {
+  description = "Provisioning access policy token per org key (scopes: accesspolicies:read|write|delete, stacks:read). Supplied as TF_VAR_grafana_cloud_tokens='{ example = \"...\" }'; never lands in a file."
+  type        = map(string)
   sensitive   = true
 }
 
@@ -17,6 +24,6 @@ variable "page_version" {
 }
 
 variable "checks" {
-  description = "Every monitored endpoint (see checks.auto.tfvars). Shape and validation live in the checks module."
+  description = "Every monitored endpoint (see checks.auto.tfvars). Each entry names the org whose account runs it; the remaining shape and validation live in the checks module."
   type        = any
 }

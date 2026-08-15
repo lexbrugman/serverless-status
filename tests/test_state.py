@@ -202,7 +202,7 @@ class TestAssemble:
         built = state.assemble(fixtures.manifest(), now=NOW, outages=outages)
         assert built["outages"] == []
 
-    def test_groups_keep_manifest_order_and_member_order(self):
+    def test_groups_derive_from_member_orders(self):
         built = fixtures.build_state("all-green", NOW)
         assert [g["name"] for g in built["groups"]] == ["Web", "Mail", "Network"]
         assert [c["key"] for c in built["groups"][0]["checks"]] == ["website", "api", "docs"]
@@ -212,7 +212,26 @@ class TestAssemble:
         for check in mani["checks"].values():
             del check["order"]
         built = state.assemble(mani, now=NOW)
-        assert [c["key"] for c in built["groups"][0]["checks"]] == ["api", "docs", "website"]
+        assert [g["name"] for g in built["groups"]] == ["Mail", "Network", "Web"]
+        assert [c["key"] for c in built["groups"][2]["checks"]] == ["api", "docs", "website"]
+
+
+class TestGroupOrder:
+    def test_lowest_member_order_wins_then_name(self):
+        checks = {
+            "a": {"group": "Zeta", "order": 5},
+            "b": {"group": "Alpha", "order": 10},
+            "c": {"group": "Zeta", "order": 90},
+            "d": {"group": "Mid", "order": 10},
+        }
+        assert state.group_order(checks) == ["Zeta", "Alpha", "Mid"]
+
+    def test_missing_order_counts_as_default(self):
+        checks = {
+            "a": {"group": "Later", "order": 60},
+            "b": {"group": "Default"},
+        }
+        assert state.group_order(checks) == ["Default", "Later"]
 
 
 class TestSnapshot:

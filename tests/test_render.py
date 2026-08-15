@@ -79,14 +79,6 @@ class TestRenderPage:
         page = render.render_page(fixtures.build_state("all-green", NOW))
         assert "<title>Example Corp status</title>" in page
 
-    def test_empty_group_is_skipped_and_empty_log_says_so(self):
-        mani = fixtures.manifest()
-        mani["groups"] = ["Web", "Ghost town"]
-        mani["checks"] = {"website": mani["checks"]["website"]}
-        page = render.render_page(state.assemble(mani, now=NOW))
-        assert "Ghost town" not in page
-        assert "No outages in the last 30 days." in page
-
     def test_missing_data_renders_placeholders(self):
         mani = fixtures.manifest()
         built = state.assemble(mani, now=NOW, degraded=True)
@@ -94,6 +86,7 @@ class TestRenderPage:
         assert '<span class="ratio">—</span>' in page
         assert 'class="latency"' not in page
         assert 'class="spark"' not in page
+        assert "No outages in the last 30 days." in page
 
 
 class TestRenderStatus:

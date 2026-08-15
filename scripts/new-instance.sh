@@ -43,20 +43,21 @@ Instance created in $target, pinned to ${tag}.
 
 Next steps:
   1. Make it a repository: git init (skip if the target was a clone).
-  2. Fill in main.tf, ci.tf, and checks.auto.tfvars, and pick a state
+  2. Fill in main.tf, ci.tf, orgs.auto.tfvars, and checks.auto.tfvars,
+     and pick a state
      bucket name (replace CHANGE-ME-state-bucket everywhere it appears).
   3. Secrets: the provisioning token comes from Grafana Cloud; the state
      passphrase is created here, once — generate it and store it in your
      password manager before exporting (every future plan and apply needs
      the same value):
        head -c 24 /dev/urandom | base64
-       export TF_VAR_grafana_cloud_token=...
+       export TF_VAR_grafana_cloud_tokens='{ example = "..." }'
        export TF_VAR_state_passphrase=...
   4. Create the state bucket, then commit its state file:
        (cd bootstrap && tofu init && tofu apply)
   5. tofu init
   6. Step zero — apply the SMTP checks alone and verify port-25 egress and
      the stored dialogue order before anything else:
-       tofu apply -target=module.checks
+       tofu apply -target=module.checks_example
 See docs/setup-guide.md in the public repository for the full walkthrough.
 EOF

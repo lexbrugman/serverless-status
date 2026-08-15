@@ -1,8 +1,11 @@
 # The only file touched day-to-day: every monitored endpoint, keyed by a
-# stable identifier. A rename is a deliberate destroy-and-recreate of that
-# check's history. Adding check #10 is one entry here.
+# stable identifier. `org` names the account (orgs.auto.tfvars) whose
+# probes run — and whose budget pays for — the check. A key rename is a
+# deliberate destroy-and-recreate of that check's history. Adding check #10
+# is one entry here.
 checks = {
   website = {
+    org     = "example"
     display = "Website"
     group   = "Web"
     type    = "https"
@@ -11,6 +14,7 @@ checks = {
   }
 
   api = {
+    org               = "example"
     display           = "API"
     group             = "Web"
     type              = "https"
@@ -21,6 +25,7 @@ checks = {
   }
 
   mail-inbound = {
+    org     = "example"
     display = "Inbound mail (SMTP + STARTTLS)"
     group   = "Mail"
     type    = "smtp"
@@ -29,6 +34,7 @@ checks = {
   }
 
   office-uplink = {
+    org     = "example"
     display = "Office connectivity"
     group   = "Network"
     type    = "ping"

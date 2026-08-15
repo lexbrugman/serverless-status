@@ -11,7 +11,9 @@ and a GitHub repository for your private instance.
    `accesspolicies:write`, `accesspolicies:delete`, `stacks:read`, and a
    token for it — **with an expiry**. This is the provisioning credential;
    it is the only Grafana secret that ever leaves Grafana, and it lives
-   solely in `TF_VAR_grafana_cloud_token`.
+   solely in `TF_VAR_grafana_cloud_tokens`, keyed by org. Repeat per
+   organisation when several accounts feed one page: each org keeps its own
+   account, billing, and free-tier budget.
 
 ## 2. The instance
 
@@ -34,8 +36,9 @@ A fresh clone of an empty private repository also works as the target —
 The stamper copies the template and pins the module sources to the release
 you cloned. Everything from here on happens inside the instance. Fill in:
 
-- `main.tf` — domain, zone, stack slug, site identity;
-- `checks.auto.tfvars` — your checks;
+- `main.tf` — domain, zone, site identity;
+- `orgs.auto.tfvars` — your Grafana account(s), keyed by org;
+- `checks.auto.tfvars` — your checks, each naming its org;
 - `ci.tf` — your instance repository;
 - the regions in `providers.tf` and `bootstrap/main.tf`;
 - the state bucket name: pick one and replace `CHANGE-ME-state-bucket`
@@ -52,7 +55,7 @@ as the `STATE_PASSPHRASE` environment secret):
 
 ```sh
 head -c 24 /dev/urandom | base64        # the passphrase — store it first
-export TF_VAR_grafana_cloud_token=<provisioning token>
+export TF_VAR_grafana_cloud_tokens='{ example = "<provisioning token>" }'
 export TF_VAR_state_passphrase=<the stored passphrase>
 ```
 
@@ -88,8 +91,10 @@ built until this passes.
 
 ```sh
 tofu init
-tofu apply -target=module.checks
+tofu apply -target=module.checks_example
 ```
+
+(One `-target` per org module when several accounts feed the page.)
 
 Then, in the Grafana console (or via the Prometheus API): watch
 `probe_success{job="<your smtp check>"}` report `1`, and confirm in the
@@ -115,7 +120,7 @@ credentials because `ci.tf` creates the OIDC roles CI will later assume.
 In the instance repository, create the protected `production` environment,
 then add:
 
-- environment secrets `GRAFANA_CLOUD_TOKEN` and `STATE_PASSPHRASE`;
+- environment secrets `GRAFANA_CLOUD_TOKENS` (the full map) and `STATE_PASSPHRASE`;
 - repository variables `PLAN_ROLE_ARN` and `APPLY_ROLE_ARN` (from the first
   apply's IAM roles).
 

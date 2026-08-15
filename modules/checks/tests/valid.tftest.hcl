@@ -30,13 +30,6 @@ override_data {
 variables {
   stack_slug = "examplecorp"
 
-  site = {
-    name     = "Example Corp"
-    timezone = "Europe/Amsterdam"
-  }
-
-  page = {}
-
   checks = {
     api = {
       display           = "API"
@@ -119,28 +112,23 @@ run "manifest_and_outputs" {
   command = plan
 
   assert {
-    condition     = output.page_manifest.schema_version == 1
-    error_message = "manifest schema_version must be 1"
+    condition     = output.check_manifest.schema_version == 2
+    error_message = "manifest schema_version must be 2"
   }
 
   assert {
-    condition     = output.page_manifest.checks.admin.port == 8443 && output.page_manifest.checks.api.port == 443
+    condition     = output.check_manifest.checks.admin.port == 8443 && output.check_manifest.checks.api.port == 443
     error_message = "manifest ports must resolve type defaults"
   }
 
   assert {
-    condition     = output.page_manifest.checks.api.path == "/health" && output.page_manifest.checks["mail-inbound"].path == null
+    condition     = output.check_manifest.checks.api.path == "/health" && output.check_manifest.checks["mail-inbound"].path == null
     error_message = "manifest path resolves for http(s) only"
   }
 
   assert {
-    condition     = output.page_manifest.checks["office-uplink"].port == null
+    condition     = output.check_manifest.checks["office-uplink"].port == null
     error_message = "ping has no port in the manifest"
-  }
-
-  assert {
-    condition     = jsonencode(output.page_manifest.groups) == jsonencode(["Mail", "Web", "Network"])
-    error_message = "groups must order by lowest member order, then name"
   }
 
   assert {

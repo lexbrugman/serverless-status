@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 env:
-  TF_VAR_grafana_cloud_token: ${{ secrets.GRAFANA_CLOUD_TOKEN }}
+  TF_VAR_grafana_cloud_tokens: ${{ secrets.GRAFANA_CLOUD_TOKENS }}
   TF_VAR_state_passphrase: ${{ secrets.STATE_PASSPHRASE }}
 
 jobs:

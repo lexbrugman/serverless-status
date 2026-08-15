@@ -47,23 +47,39 @@ mock_provider "archive" {}
 variables {
   domain        = "status.example.com"
   dns_zone_name = "example.com"
-  prometheus = {
-    query_url = "https://prometheus-prod-01-eu-west-0.grafana.net/api/prom"
-    user      = "987654"
-    token     = "glc_mock"
+
+  site = {
+    name     = "Example Corp"
+    timezone = "Europe/Amsterdam"
   }
-  page_manifest = {
-    schema_version = 1
-    site           = { name = "Example Corp", timezone = "Europe/Amsterdam" }
-    page = {
-      history_days    = 90
-      outage_log_days = 30
-      retention_days  = 400
-      refresh_seconds = 60
-    }
-    checks = {}
-    groups = []
-  }
+
+  page = {}
+
+  prometheus_sources = [
+    {
+      query_url = "https://prometheus-prod-01-eu-west-0.grafana.net/api/prom"
+      user      = "987654"
+      token     = "glc_mock"
+    },
+  ]
+
+  check_manifests = [
+    {
+      schema_version = 2
+      checks = {
+        website = {
+          display           = "Website"
+          group             = "Web"
+          type              = "https"
+          host              = "www.example.com"
+          port              = 443
+          path              = "/"
+          order             = 10
+          latency_budget_ms = null
+        }
+      }
+    },
+  ]
 }
 
 run "configuration" {
@@ -127,16 +143,80 @@ run "mismatched_manifest_schema_fails_the_plan" {
   command = plan
 
   variables {
-    page_manifest = {
-      schema_version = 2
-      site           = { name = "Example Corp", timezone = "Europe/Amsterdam" }
-      page           = {}
-      checks         = {}
-      groups         = []
-    }
+    check_manifests = [
+      {
+        schema_version = 1
+        checks         = {}
+      },
+    ]
   }
 
   expect_failures = [terraform_data.manifest_compatibility]
+}
+
+run "colliding_check_keys_fail_the_plan" {
+  command = plan
+
+  variables {
+    check_manifests = [
+      { schema_version = 2, checks = { website = { group = "Web", order = 10 } } },
+      { schema_version = 2, checks = { website = { group = "Web", order = 10 } } },
+    ]
+  }
+
+  expect_failures = [terraform_data.manifest_compatibility]
+}
+
+run "rejects_malformed_accent" {
+  command = plan
+
+  variables {
+    site = {
+      name     = "Example Corp"
+      timezone = "Europe/Amsterdam"
+      accent   = "green"
+    }
+  }
+
+  expect_failures = [var.site]
+}
+
+run "rejects_empty_timezone" {
+  command = plan
+
+  variables {
+    site = {
+      name     = "Example Corp"
+      timezone = ""
+    }
+  }
+
+  expect_failures = [var.site]
+}
+
+run "rejects_history_beyond_retention" {
+  command = plan
+
+  variables {
+    page = {
+      history_days   = 400
+      retention_days = 90
+    }
+  }
+
+  expect_failures = [var.page]
+}
+
+run "rejects_outage_log_beyond_retention" {
+  command = plan
+
+  variables {
+    page = {
+      outage_log_days = 500
+    }
+  }
+
+  expect_failures = [var.page]
 }
 
 run "rejects_malformed_domain" {

@@ -29,13 +29,6 @@ override_data {
 variables {
   stack_slug = "examplecorp"
 
-  site = {
-    name     = "Example Corp"
-    timezone = "Europe/Amsterdam"
-  }
-
-  page = {}
-
   checks = {
     website = {
       display = "Website"
@@ -126,56 +119,4 @@ run "rejects_empty_probe_locations" {
   }
 
   expect_failures = [var.probe_locations]
-}
-
-run "rejects_malformed_accent" {
-  command = plan
-
-  variables {
-    site = {
-      name     = "Example Corp"
-      timezone = "Europe/Amsterdam"
-      accent   = "green"
-    }
-  }
-
-  expect_failures = [var.site]
-}
-
-run "rejects_empty_timezone" {
-  command = plan
-
-  variables {
-    site = {
-      name     = "Example Corp"
-      timezone = ""
-    }
-  }
-
-  expect_failures = [var.site]
-}
-
-run "rejects_history_beyond_retention" {
-  command = plan
-
-  variables {
-    page = {
-      history_days   = 400
-      retention_days = 90
-    }
-  }
-
-  expect_failures = [var.page]
-}
-
-run "rejects_outage_log_beyond_retention" {
-  command = plan
-
-  variables {
-    page = {
-      outage_log_days = 500
-    }
-  }
-
-  expect_failures = [var.page]
 }
