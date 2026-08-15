@@ -9,9 +9,18 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 target="${1:?usage: new-instance.sh TARGET_DIR}"
 
-if [[ -e "$target" && -n "$(ls -A "$target" 2>/dev/null)" ]]; then
-  echo "ERROR: $target exists and is not empty." >&2
-  exit 1
+# A fresh clone of an empty repository — a lone .git — is a valid target;
+# any other content is not.
+if [[ -d "$target" ]]; then
+  shopt -s nullglob dotglob
+  contents=("$target"/*)
+  shopt -u nullglob dotglob
+  for entry in "${contents[@]}"; do
+    if [[ "${entry##*/}" != ".git" ]]; then
+      echo "ERROR: $target exists and is not empty." >&2
+      exit 1
+    fi
+  done
 fi
 
 tag="$(git -C "$ROOT" describe --tags --abbrev=0 2>/dev/null)" || {
@@ -33,12 +42,15 @@ cat <<EOF
 Instance created in $target, pinned to ${tag}.
 
 Next steps:
-  1. Fill in the locals in main.tf and ci.tf, the backend in providers.tf,
-     and your checks in checks.auto.tfvars.
-  2. export TF_VAR_grafana_cloud_token=...   (provisioning token)
+  1. Make it a repository: git init (skip if the target was a clone).
+  2. Fill in main.tf, ci.tf, and checks.auto.tfvars, and pick a state
+     bucket name (replace CHANGE-ME-state-bucket everywhere it appears).
+  3. export TF_VAR_grafana_cloud_token=...   (provisioning token)
      export TF_VAR_state_passphrase=...      (state encryption, >= 16 chars)
-  3. tofu init
-  4. Step zero — apply the SMTP checks alone and verify port-25 egress and
+  4. Create the state bucket, then commit its state file:
+       (cd bootstrap && tofu init && tofu apply)
+  5. tofu init
+  6. Step zero — apply the SMTP checks alone and verify port-25 egress and
      the stored dialogue order before anything else:
        tofu apply -target=module.checks
 See docs/setup-guide.md in the public repository for the full walkthrough.

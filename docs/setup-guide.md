@@ -15,15 +15,24 @@ and a GitHub repository for your private instance.
 
 ## 2. The instance
 
-From a release checkout of this repository:
+The instance is its own private git repository, materialised from this
+repository's template. Clone this repository at its newest release tag,
+run the stamper, and make the result a repository:
 
 ```sh
-scripts/new-instance.sh ../my-status-instance
-cd ../my-status-instance
+git clone --branch <latest release tag> https://github.com/lexbrugman/serverless-status
+serverless-status/scripts/new-instance.sh my-status-instance
+cd my-status-instance
+git init
+git remote add origin <your private repository URL>
 ```
 
-This copies the template and pins the module sources to the release you
-cloned. Everything from here on happens inside the instance. Fill in:
+A fresh clone of an empty private repository also works as the target —
+`new-instance.sh` accepts a directory containing only `.git`, and the
+`git init`/`git remote` steps fall away.
+
+The stamper copies the template and pins the module sources to the release
+you cloned. Everything from here on happens inside the instance. Fill in:
 
 - `main.tf` — domain, zone, stack slug, site identity;
 - `checks.auto.tfvars` — your checks;

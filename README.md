@@ -35,8 +35,8 @@ encryption to KMS.
 
 ```sh
 git clone --branch <latest release> https://github.com/lexbrugman/serverless-status
-cd serverless-status
-scripts/new-instance.sh ../my-status-page
+serverless-status/scripts/new-instance.sh my-status-page
+cd my-status-page && git init
 ```
 
 Then follow [docs/setup-guide.md](docs/setup-guide.md). Configuration
