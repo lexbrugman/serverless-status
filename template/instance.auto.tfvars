@@ -4,7 +4,9 @@
 domain        = "status.example.com"
 dns_zone_name = "example.com"
 
-# owner/name of this instance repository, for CI's OIDC trust.
+# This repository as the OIDC token's sub claim spells it: plain
+# owner/name, or owner@id/name@id when the organisation uses immutable-ID
+# subject claims. The Bootstrap workflow's token-identity step prints it.
 github_repository = "example-org/serverless-status-instance"
 
 site = {

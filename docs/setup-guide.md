@@ -89,8 +89,13 @@ policy:
 
    The wizard's filter fields often produce something narrower, and the
    bootstrap job authenticates with an environment-flavoured subject that
-   a branch-filtered trust rejects. The first apply replaces this policy
-   with the managed one, narrowed to the production environment.
+   a branch-filtered trust rejects. Organisations with immutable-ID
+   subject claims spell the repository as `owner@id/name@id` — the
+   Bootstrap workflow's token-identity step prints the authoritative
+   value; use it verbatim here and as `github_repository` in
+   `instance.auto.tfvars`, or no pattern will match. The first apply
+   replaces this policy with the managed one, narrowed to the production
+   environment.
 
 Then, in the instance repository, add the repository variable
 `APPLY_ROLE_ARN` (the new role's ARN) and two repository secrets:
