@@ -37,5 +37,6 @@ The short version:
    and verify the stored SMTP dialogue order, before applying the rest.
 5. **Hand CI the wheel** — `bin/ci-handover.sh` (`TF_VAR` secrets still
    exported) prints every name and value to paste into GitHub: repository
-   secrets, role-ARN variables, and the `production` environment to create
-   and protect. From then on, master pushes apply.
+   secrets and role-ARN variables. The `production` environment appears on
+   the first master push; restrict its deployment branches to master. From
+   then on, master pushes apply.

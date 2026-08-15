@@ -5,8 +5,8 @@
 #
 # Secrets belong at repository level: the plan and drift jobs run outside
 # any environment, so environment secrets would never reach them. The
-# production environment exists to gate the apply job; its protection
-# rules are a console decision.
+# production environment needs no creating — GitHub creates it when the
+# first apply job references it; protecting it is the part that is yours.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -35,6 +35,10 @@ $plan_role_arn
   APPLY_ROLE_ARN
 $apply_role_arn
 
-Then, under Settings -> Environments: create "production" and add the
-protection rules you want — it gates the apply job.
+The "production" environment appears on the first master push (GitHub
+creates it when the apply job references it). Then, under Settings ->
+Environments, restrict its deployment branches to master — the apply
+role's trust accepts any run bound to this environment, and the branch
+restriction is what makes that mean master only. Add reviewers if you
+want a human gate too.
 EOF
