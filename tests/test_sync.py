@@ -2,12 +2,11 @@
 structure regenerated over the org set, data and state preserved."""
 
 import subprocess
-from pathlib import Path
 
 import pytest
+from conftest import FAKE_TAG
 
-ROOT = Path(__file__).resolve().parent.parent
-REF = "2099.101.0"
+SYNC_REF = "2099.102.0"
 
 
 def run(args, cwd):
@@ -15,13 +14,13 @@ def run(args, cwd):
 
 
 @pytest.fixture
-def instance(tmp_path):
+def instance(repo, tmp_path):
     target = tmp_path / "instance"
     subprocess.run(
-        [str(ROOT / "scripts" / "new-instance.sh"), str(target)],
+        [str(repo / "scripts" / "new-instance.sh"), str(target)],
         capture_output=True,
         check=True,
-        cwd=ROOT,
+        cwd=repo,
     )
     subprocess.run(["git", "init", "-q", str(target)], check=True)
 
@@ -54,13 +53,13 @@ def instance(tmp_path):
 
 
 class TestSync:
-    def test_rebuilds_logic_and_structure_preserving_data(self, instance):
+    def test_rebuilds_logic_and_structure_preserving_data(self, repo, instance):
         result = run(
             [
                 str(instance / "bin" / "sync.sh"),
                 "--source",
-                str(ROOT / "template"),
-                REF,
+                str(repo / "template"),
+                SYNC_REF,
             ],
             cwd=instance,
         )
@@ -77,16 +76,17 @@ class TestSync:
         page = (instance / "page.tf").read_text()
         assert "module.checks_acme.check_manifest" in page
         assert "module.checks_example.check_manifest" in page
-        assert f"?ref={REF}" in page and "?ref=master" not in page
+        assert f"?ref={SYNC_REF}" in page
+        assert FAKE_TAG not in page and "?ref=master" not in page
 
         assert "my-real-bucket" in (instance / "state.tfbackend").read_text()
         assert (instance / "RUNBOOK.md").read_text() == "mine\n"
         assert '"fake"' in (instance / "bootstrap" / "terraform.tfstate").read_text()
 
-    def test_fails_loudly_without_a_ref(self, instance):
+    def test_fails_loudly_without_a_ref(self, repo, instance):
         (instance / "page.tf").write_text("# no module sources\n")
         result = run(
-            [str(instance / "bin" / "sync.sh"), "--source", str(ROOT / "template")],
+            [str(instance / "bin" / "sync.sh"), "--source", str(repo / "template")],
             cwd=instance,
         )
         assert result.returncode == 1
