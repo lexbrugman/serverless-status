@@ -85,11 +85,16 @@ main stack can never delete its own state store. That root's state is a
 local file committed to the repository: git predates everything, and the
 file holds only bucket metadata, no secrets.
 
+Admin credentials reach the container the way the AWS SDK reads them:
+export `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` (plus
+`AWS_SESSION_TOKEN` for temporary keys), or `AWS_PROFILE` with an existing
+`~/.aws`.
+
 ```sh
 cd bootstrap
 tofu init
-tofu apply -var-file=../state.auto.tfvars   # admin credentials, once
-git add terraform.tfstate
+tofu apply -var-file=../state.auto.tfvars
+git add terraform.tfstate .terraform.lock.hcl
 git commit -m "Create the state bucket"
 cd ..
 ```
