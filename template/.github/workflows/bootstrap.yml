@@ -73,7 +73,7 @@ jobs:
             exit 0
           fi
           tofu -chdir=bootstrap init -input=false
-          tofu -chdir=bootstrap apply -input=false -auto-approve -var-file=../state.auto.tfvars
+          tofu -chdir=bootstrap apply -input=false -auto-approve
           git config user.name "github-actions"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add bootstrap/terraform.tfstate bootstrap/.terraform.lock.hcl
@@ -83,7 +83,7 @@ jobs:
       - name: Adopt the hand-made trust
         run: |
           set -euo pipefail
-          tofu init -input=false -backend-config=state.auto.tfvars
+          tofu init -input=false -backend-config=state.tfbackend
           account_id="$(aws sts get-caller-identity --query Account --output text)"
           state="$(tofu state list 2>/dev/null || true)"
           if ! grep -q 'module.ci.aws_iam_openid_connect_provider.github' <<<"$state"; then

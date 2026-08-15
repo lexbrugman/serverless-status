@@ -52,7 +52,7 @@ jobs:
         id: plan
         run: |
           set -euo pipefail
-          tofu init -input=false -backend-config=state.auto.tfvars
+          tofu init -input=false -backend-config=state.tfbackend
           tofu plan -input=false -no-color -out=tfplan | tee plan.txt
 
       - name: Comment the plan on the PR
@@ -95,5 +95,5 @@ jobs:
         run: |
           set -euo pipefail
           module_ref="$(sed -n 's/.*?ref=\([^"]*\)".*/\1/p' page.tf | head -n 1)"
-          tofu init -input=false -backend-config=state.auto.tfvars
+          tofu init -input=false -backend-config=state.tfbackend
           tofu apply -input=false -auto-approve -var "page_version=${module_ref}"

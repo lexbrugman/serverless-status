@@ -1,0 +1,6 @@
+# Yours: where the state lives — each fact stated exactly once, in the
+# backend's native file form: tofu init -backend-config=state.tfbackend
+# Both roots read the same two values by parsing this file, so keep the
+# simple key = "value" spelling.
+bucket = "CHANGE-ME-state-bucket"
+region = "eu-west-1"

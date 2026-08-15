@@ -15,14 +15,14 @@ The short version:
    and token (scopes `accesspolicies:read|write|delete`, `stacks:read`),
    with an expiry.
 2. **Fill in the data files** — `instance.auto.tfvars` (identity and
-   orgs), `state.auto.tfvars` (the bucket name, stated once), and
+   orgs), `state.tfbackend` (the bucket name, stated once), and
    `checks.auto.tfvars` (every check names its org). Your values live only
-   in `*.tfvars`; your structure lives only in `org_<key>.tf` (copy
+   in the data files; your structure lives only in `org_<key>.tf` (copy
    `org_example.tf` per Grafana account) and `page.tf`. Everything else —
    `wiring/` and the root files marked "do not edit" — is logic a template
    update overwrites.
 3. **State bucket** — `cd bootstrap && tofu init && tofu apply
-   -var-file=../state.auto.tfvars`, then
+   `, then
    commit the resulting `terraform.tfstate` (bucket metadata only, no
    secrets).
 4. **First apply runs locally** with admin credentials (it creates the
@@ -31,7 +31,7 @@ The short version:
    ```sh
    head -c 24 /dev/urandom | base64   # the passphrase — store it, CI needs it too
    export TF_VAR_grafana_cloud_tokens='{ example = "..." }' TF_VAR_state_passphrase=...
-   tofu init -backend-config=state.auto.tfvars
+   tofu init -backend-config=state.tfbackend
    tofu apply -target=module.checks_example   # step zero: SMTP checks first
    ```
 

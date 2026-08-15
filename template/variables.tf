@@ -16,19 +16,6 @@ variable "github_repository" {
   type        = string
 }
 
-# bucket and region carry the S3 backend's own argument names so
-# state.auto.tfvars can serve as backend config, root var-file, and
-# bootstrap var-file at once — each fact stated exactly once.
-variable "bucket" {
-  description = "Name of the state bucket (state.auto.tfvars)."
-  type        = string
-}
-
-variable "region" {
-  description = "Region the stack and its state live in (state.auto.tfvars)."
-  type        = string
-}
-
 variable "site" {
   description = "Page identity (see instance.auto.tfvars); shape and validation live in the renderer module."
   type        = any

@@ -38,7 +38,8 @@ The stamper copies the template and pins the module sources to the release
 you cloned.
 
 The instance separates what you own from what the template owns, in
-three classes. The `*.tfvars` data files are yours. `org_<key>.tf` and
+three classes. The data files — `*.tfvars` and `state.tfbackend` — are
+yours. `org_<key>.tf` and
 `page.tf` are yours structurally — one org file per Grafana account,
 copied from `org_example.tf`, plus that org's entry in `page.tf`'s two
 lists; they also carry the module pins Renovate manages. Everything else —
@@ -47,7 +48,7 @@ template update overwrites wholesale. Fill in the data files:
 
 - `instance.auto.tfvars` — who you are: domain, zone, site identity, your
   instance repository, and your Grafana account(s) keyed by org;
-- `state.auto.tfvars` — where state lives: the bucket name and region,
+- `state.tfbackend` — where state lives: the bucket name and region,
   each stated exactly once;
 - `checks.auto.tfvars` — what you monitor: your checks, each naming its
   org.
@@ -164,7 +165,7 @@ into your copies:
 git -C serverless-status diff <old tag>..<new tag> -- template/
 ```
 
-Your `*.tfvars` files are never the template's to touch.
+Your data files are never the template's to touch.
 
 ## Working locally
 
@@ -179,8 +180,8 @@ export TF_VAR_grafana_cloud_tokens='{ example = "<provisioning token>" }'
 export TF_VAR_state_passphrase=<the stored passphrase>
 export AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=...   # or AWS_PROFILE
 
-(cd bootstrap && tofu init && tofu apply -var-file=../state.auto.tfvars)
-tofu init -backend-config=state.auto.tfvars
+(cd bootstrap && tofu init && tofu apply)
+tofu init -backend-config=state.tfbackend
 tofu apply -target=module.checks_example    # step zero, one per org
 tofu apply
 bin/ci-handover.sh                          # prints the handover values

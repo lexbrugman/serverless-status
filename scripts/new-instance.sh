@@ -45,7 +45,7 @@ Next steps (no local tooling needed — CI bootstraps over OIDC):
   1. Make it a repository: git init (skip if the target was a clone),
      add your private remote, push.
   2. Fill in the *.tfvars data files; the state bucket name appears
-     once, in state.auto.tfvars. Commit and push.
+     once, in state.tfbackend. Commit and push.
   3. In the IAM console: create the GitHub OIDC provider and a
      Web-identity role for this repository (branch filter empty),
      AdministratorAccess, named exactly serverless-status-apply.
