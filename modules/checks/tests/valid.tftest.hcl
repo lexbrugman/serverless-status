@@ -8,14 +8,6 @@ mock_provider "grafana" {
 
 mock_provider "http" {}
 
-override_data {
-  target = data.http.sm_tenant
-  values = {
-    status_code   = 200
-    response_body = "{\"limits\":{\"maxChecks\":100}}"
-  }
-}
-
 mock_provider "grafana" {
   alias = "sm"
 }
@@ -77,8 +69,19 @@ variables {
   }
 }
 
+# Every run overrides data.http.sm_tenant itself: a file-level default
+# alongside the run-level quota scenarios would draw a "global override
+# ignored" warning on each of those runs.
 run "targets_and_units" {
   command = plan
+
+  override_data {
+    target = data.http.sm_tenant
+    values = {
+      status_code   = 200
+      response_body = "{\"limits\":{\"maxChecks\":100}}"
+    }
+  }
 
   assert {
     condition     = grafana_synthetic_monitoring_check.http["api"].target == "https://api.example.com/health"
@@ -124,6 +127,14 @@ run "targets_and_units" {
 run "manifest_and_outputs" {
   command = plan
 
+  override_data {
+    target = data.http.sm_tenant
+    values = {
+      status_code   = 200
+      response_body = "{\"limits\":{\"maxChecks\":100}}"
+    }
+  }
+
   assert {
     condition     = output.check_manifest.schema_version == 2
     error_message = "manifest schema_version must be 2"
@@ -163,6 +174,14 @@ run "manifest_and_outputs" {
 run "over_budget_fails_the_plan" {
   command = plan
 
+  override_data {
+    target = data.http.sm_tenant
+    values = {
+      status_code   = 200
+      response_body = "{\"limits\":{\"maxChecks\":100}}"
+    }
+  }
+
   variables {
     monthly_execution_budget = 20000
   }
@@ -172,6 +191,14 @@ run "over_budget_fails_the_plan" {
 
 run "unknown_probe_location_fails_the_plan" {
   command = plan
+
+  override_data {
+    target = data.http.sm_tenant
+    values = {
+      status_code   = 200
+      response_body = "{\"limits\":{\"maxChecks\":100}}"
+    }
+  }
 
   variables {
     probe_locations = ["Atlantis"]
