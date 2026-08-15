@@ -5,6 +5,7 @@ set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
+tofu init -input=false -backend-config=state.tfbackend
 targets=()
 for file in org_*.tf; do
   org="${file#org_}"
