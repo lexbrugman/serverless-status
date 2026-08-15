@@ -18,8 +18,9 @@ The specialised checks, each its own CI job:
   `--serve`, browse them (`BOOTSTRAP_PUBLISH=8000` through the toolbox).
 - `check-template.sh` — validate the template as a root, with module
   sources rewritten to local paths.
-- `check-smtp-dialogue.py` — apply the SMTP dialogue against a mock SM API
-  and assert the provider transmits it in order.
+- `check-sm-payloads.py` — apply one check of each type against a mock SM
+  API and assert the transmitted payloads: the SMTP dialogue's order and
+  the attribute mappings each type relies on.
 - `check-integration.py` — invoke the dev stack's Lambda and validate the
   response; the runtime-parity gate.
 - `check-cross-layer.py` — assert the mirrored Lambda Python version agrees

@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
-"""Prove the SMTP dialogue reaches the SM API in declaration order.
+"""Assert the payloads the provider transmits to the SM API, one per check
+type.
 
-The grafana provider stores tcp query_response blocks as a set and transmits
-them sorted by an internal content hash. The dialogue module's spellings are
-crafted so hash order equals dialogue order — an invariant no plan, state,
-or test can observe, because it only exists inside the provider's API call.
-So this guard performs that call for real: it applies a minimal check
-against a local mock of the SM API, using the provider version pinned in the
-module's lock file, and compares the transmitted order against the module's
-declared order. A provider release that changes the hashing turns this red
-instead of silently scrambling the conversation.
+The wire payload is the one surface no plan, state, or test can observe —
+it exists only inside the provider's API call during an apply. Two
+invariants ride on it. The SMTP dialogue's entry order: the provider
+serializes tcp query_response as a set sorted by an internal content hash,
+and the dialogue module's spellings are crafted so that order equals
+dialogue order. And the attribute mapping for every field the checks module
+relies on: an https check that stops transmitting fail_if_not_ssl still
+plans, applies, and probes green while asserting less than the page claims.
+
+So this guard performs the call for real: it applies one check of each type
+against a local mock of the SM API, using the provider version pinned in
+the module's lock file, and asserts what arrived. A provider release that
+scrambles the dialogue or drops a mapping turns this red instead of
+silently weakening the monitoring.
 """
 
 import base64
@@ -27,6 +33,9 @@ ROOT = Path(__file__).resolve().parent.parent
 DIALOGUE_MODULE = ROOT / "modules" / "checks" / "dialogue"
 LOCK_FILE = ROOT / "modules" / "checks" / ".terraform.lock.hcl"
 
+# The non-smtp checks mirror what modules/checks/main.tf configures per
+# type: fail_if_not_ssl and the accepted status code for https, an empty
+# settings block for ping, frequency and timeout in milliseconds.
 ROOT_CONFIG = """
 terraform {
   required_providers {
@@ -48,9 +57,11 @@ output "declared" {
 }
 
 resource "grafana_synthetic_monitoring_check" "smtp" {
-  job    = "dialogue-order-guard"
-  target = "mx.example.com:25"
-  probes = [11]
+  job       = "guard-smtp"
+  target    = "mx.example.com:25"
+  probes    = [11]
+  frequency = 300000
+  timeout   = 10000
 
   settings {
     tcp {
@@ -66,14 +77,41 @@ resource "grafana_synthetic_monitoring_check" "smtp" {
     }
   }
 }
+
+resource "grafana_synthetic_monitoring_check" "https" {
+  job       = "guard-https"
+  target    = "https://www.example.com/health"
+  probes    = [11]
+  frequency = 300000
+  timeout   = 5000
+
+  settings {
+    http {
+      fail_if_not_ssl    = true
+      valid_status_codes = [200]
+    }
+  }
+}
+
+resource "grafana_synthetic_monitoring_check" "ping" {
+  job       = "guard-ping"
+  target    = "gw.example.com"
+  probes    = [11]
+  frequency = 600000
+  timeout   = 3000
+
+  settings {
+    ping {}
+  }
+}
 """
 
 
 class MockSMAPI(BaseHTTPRequestHandler):
-    """Just enough of the SM API for one check to be created: probe listing,
-    tenant lookup, and check/add — which records the payload we care about."""
+    """Just enough of the SM API for checks to be created: probe listing,
+    tenant lookup, and check/add — which records the payloads under test."""
 
-    captured: ClassVar[dict] = {}
+    captured: ClassVar[list] = []
 
     def log_message(self, *_args):
         pass
@@ -115,8 +153,10 @@ class MockSMAPI(BaseHTTPRequestHandler):
         body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
         if "/check/add" in self.path:
             payload = json.loads(body)
-            MockSMAPI.captured = payload
-            payload.update({"id": 42, "tenantId": 1, "created": 1.0, "modified": 1.0})
+            MockSMAPI.captured.append(payload)
+            payload.update(
+                {"id": 42 + len(MockSMAPI.captured), "tenantId": 1, "created": 1.0, "modified": 1.0}
+            )
             self._reply(payload)
         else:
             self._reply({})
@@ -139,12 +179,70 @@ def wire_entry(raw: dict) -> dict:
     }
 
 
+def assert_smtp(payload: dict, declared: list) -> list[str]:
+    sent = payload.get("settings", {}).get("tcp", {}).get("queryResponse")
+    if not sent:
+        return ["smtp: no query_response payload transmitted"]
+    transmitted = [wire_entry(raw) for raw in sent]
+    if transmitted != declared:
+        return [
+            "smtp: the dialogue arrived out of order — re-craft the spellings "
+            "(see dialogue/main.tf) before this provider change ships.\n"
+            f"  declared:    {json.dumps(declared)}\n"
+            f"  transmitted: {json.dumps(transmitted)}"
+        ]
+    return []
+
+
+def assert_https(payload: dict, _declared: list) -> list[str]:
+    failures = []
+    http = payload.get("settings", {}).get("http")
+    if http is None:
+        return ["https: no http settings transmitted"]
+    if http.get("failIfNotSSL") is not True:
+        failures.append(f"https: fail_if_not_ssl did not arrive true: {json.dumps(http)}")
+    if http.get("validStatusCodes") != [200]:
+        failures.append(f"https: valid_status_codes did not arrive as [200]: {json.dumps(http)}")
+    if payload.get("target") != "https://www.example.com/health":
+        failures.append(f"https: target arrived as {payload.get('target')!r}")
+    return failures
+
+
+def assert_ping(payload: dict, _declared: list) -> list[str]:
+    if "ping" not in payload.get("settings", {}):
+        return [f"ping: no ping settings transmitted: {json.dumps(payload.get('settings'))}"]
+    return []
+
+
+def assert_common(payload: dict) -> list[str]:
+    """Frequency and timeout are milliseconds end to end."""
+    expected = {
+        "guard-smtp": (300000, 10000),
+        "guard-https": (300000, 5000),
+        "guard-ping": (600000, 3000),
+    }
+    frequency, timeout = expected[payload["job"]]
+    failures = []
+    if payload.get("frequency") != frequency:
+        failures.append(f"{payload['job']}: frequency arrived as {payload.get('frequency')}")
+    if payload.get("timeout") != timeout:
+        failures.append(f"{payload['job']}: timeout arrived as {payload.get('timeout')}")
+    return failures
+
+
+ASSERTIONS = {
+    "guard-smtp": assert_smtp,
+    "guard-https": assert_https,
+    "guard-ping": assert_ping,
+}
+
+
 def main() -> None:
     server = ThreadingHTTPServer(("127.0.0.1", 0), MockSMAPI)
     port = server.server_address[1]
     threading.Thread(target=server.serve_forever, daemon=True).start()
 
-    with tempfile.TemporaryDirectory(prefix="smtp-dialogue-guard.") as tmp:
+    with tempfile.TemporaryDirectory(prefix="sm-payload-guard.") as tmp:
         workdir = Path(tmp)
         (workdir / "main.tf").write_text(
             ROOT_CONFIG % {"port": port, "dialogue": DIALOGUE_MODULE.as_posix()}
@@ -157,27 +255,23 @@ def main() -> None:
 
         tofu(workdir, "init", "-backend=false", "-input=false")
         tofu(workdir, "apply", "-auto-approve", "-input=false")
-        declared_raw = tofu(workdir, "output", "-json", "declared").stdout
+        declared = json.loads(tofu(workdir, "output", "-json", "declared").stdout)
 
     server.shutdown()
 
-    declared = json.loads(declared_raw)
-    sent = MockSMAPI.captured.get("settings", {}).get("tcp", {}).get("queryResponse")
-    if not sent:
-        sys.exit("ERROR: mock SM API captured no query_response payload.")
+    by_job = {payload.get("job"): payload for payload in MockSMAPI.captured}
+    failures = []
+    for job, check in ASSERTIONS.items():
+        if job not in by_job:
+            failures.append(f"{job}: never transmitted")
+            continue
+        failures += check(by_job[job], declared)
+        failures += assert_common(by_job[job])
 
-    transmitted = [wire_entry(raw) for raw in sent]
-    if transmitted != declared:
-        sys.exit(
-            "ERROR: the provider transmitted the SMTP dialogue out of order.\n"
-            f"declared:    {json.dumps(declared)}\n"
-            f"transmitted: {json.dumps(transmitted)}\n"
-            "The dialogue module's spellings no longer sort into dialogue order "
-            "under this provider version — re-craft them (see dialogue/main.tf) "
-            "before this provider change ships."
-        )
+    if failures:
+        sys.exit("ERROR: transmitted SM payloads diverge:\n  " + "\n  ".join(failures))
 
-    print(f"SMTP dialogue order preserved across {len(transmitted)} entries.")
+    print(f"SM payloads verified for {len(ASSERTIONS)} check types, dialogue order preserved.")
 
 
 if __name__ == "__main__":

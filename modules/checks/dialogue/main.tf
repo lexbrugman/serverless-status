@@ -10,7 +10,7 @@
 # fixed EHLO hostname — were chosen so that hash order equals dialogue
 # order. Changing any character, or a provider release that changes the
 # hashing, reorders the conversation on the wire into garbage.
-# scripts/check-smtp-dialogue.py applies this module against a mock SM API
+# scripts/check-sm-payloads.py applies this module against a mock SM API
 # and fails CI if the transmitted order ever diverges from the list below.
 #
 # The EHLO hostname is a constant, not configuration: a per-instance value

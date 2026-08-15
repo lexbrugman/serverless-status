@@ -59,9 +59,11 @@ that accepts connections but fails STARTTLS negotiation shows as down.
 
 The provider transmits `query_response` blocks in content-hash order, not
 declaration order. The exact spellings in `modules/checks/dialogue/` are
-chosen so both orders coincide, and `scripts/check-smtp-dialogue.py` applies
-the dialogue against a local mock of the SM API in CI to prove the wire
-order every run — a provider upgrade that would scramble the conversation
+chosen so both orders coincide. `scripts/check-sm-payloads.py` applies one
+check of every type against a local mock of the SM API in CI, with the
+pinned provider version, and asserts what arrives on the wire — the
+dialogue's order, and the attribute mappings each type relies on. A
+provider upgrade that would scramble the conversation or drop a mapping
 turns red before it ships.
 
 ## Data model

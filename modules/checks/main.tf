@@ -58,8 +58,8 @@ resource "grafana_synthetic_monitoring_check" "ping" {
 }
 
 # The STARTTLS conversation lives in its own module because two consumers
-# need the identical list: this resource and the dialogue-order guard
-# (scripts/check-smtp-dialogue.py), which proves the provider still
+# need the identical list: this resource and the wire-payload guard
+# (scripts/check-sm-payloads.py), which proves the provider still
 # transmits it in order. See dialogue/main.tf for why the spellings are
 # load-bearing.
 module "smtp_dialogue" {

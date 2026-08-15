@@ -55,10 +55,11 @@ jobs:
       - name: Validate the template
         run: scripts/check-template.sh
 
-  # The one invariant no plan or test can see: the order the provider
-  # actually transmits the SMTP dialogue in. Applied for real against a
-  # local mock of the SM API, with the pinned provider version.
-  smtp-dialogue-order:
+  # The one surface no plan or test can see: the payloads the provider
+  # actually transmits to the SM API — the SMTP dialogue's order and the
+  # attribute mappings each check type relies on. Applied for real against
+  # a local mock, with the pinned provider version.
+  sm-payloads:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -73,5 +74,5 @@ jobs:
             tofu
             python
 
-      - name: Verify transmitted dialogue order
-        run: scripts/check-smtp-dialogue.py
+      - name: Verify transmitted check payloads
+        run: scripts/check-sm-payloads.py
