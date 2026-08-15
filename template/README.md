@@ -25,7 +25,7 @@ The short version:
    -var-file=../state.auto.tfvars`, then
    commit the resulting `terraform.tfstate` (bucket metadata only, no
    secrets).
-4. **First apply runs locally** with admin credentials (`ci.tf` creates the
+4. **First apply runs locally** with admin credentials (it creates the
    OIDC roles CI will later assume):
 
    ```sh

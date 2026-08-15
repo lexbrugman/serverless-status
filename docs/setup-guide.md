@@ -66,7 +66,7 @@ token is the one from step 1. The state passphrase is a secret you create
 right here: it encrypts the state client-side, and every future plan and
 apply — yours and CI's — needs this exact value. Generate it once, store
 it in your password manager, and only then export it (it returns in step 6
-as the `STATE_PASSPHRASE` environment secret):
+as the `STATE_PASSPHRASE` repository secret):
 
 ```sh
 head -c 24 /dev/urandom | base64        # the passphrase — store it first
@@ -128,7 +128,8 @@ tofu apply
 The apply blocks on ACM certificate issuance, so a finished apply is a
 working TLS endpoint. Verify the page on the `distribution_domain` output
 before DNS points anywhere. The first apply runs locally with admin
-credentials because `ci.tf` creates the OIDC roles CI will later assume.
+credentials because it creates the OIDC roles CI will later assume — CI
+cannot bootstrap its own trust.
 
 ## 6. Hand CI the wheel
 
