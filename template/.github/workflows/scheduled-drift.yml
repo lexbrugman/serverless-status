@@ -39,3 +39,9 @@ jobs:
           set -euo pipefail
           tofu init -input=false
           tofu plan -input=false -detailed-exitcode
+
+      - name: Detect bootstrap drift
+        run: |
+          set -euo pipefail
+          tofu -chdir=bootstrap init -input=false
+          tofu -chdir=bootstrap plan -input=false -detailed-exitcode

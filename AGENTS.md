@@ -127,8 +127,10 @@ that are not derivable from the code.
   design change, not an implementation detail.
 - **Ownership boundary.** Modules create only what they own the entire
   lifecycle of, and read everything that predates them (the Route 53 zone,
-  the Grafana stack, the state bucket). Destroying this stack must never be
-  able to take down the zone.
+  the Grafana stack). The state bucket belongs to the instance's separate
+  `bootstrap/` root, whose state is committed to git — outside the main
+  root's blast radius. Destroying this stack must never be able to take
+  down the zone or its own state store.
 - **`moved` blocks are mandatory on every refactor.** Master is release, so
   a restructure without one is a released landmine.
 - **Providers are configured in roots only.** Modules declare

@@ -50,6 +50,7 @@ class TestNewInstance:
         assert stamped.count(f"?ref={TAG}") == 2
         assert (target / "checks.auto.tfvars").exists()
         assert (target / ".github" / "workflows" / "ci.yml").exists()
+        assert (target / "bootstrap" / "main.tf").exists()
 
     def test_refuses_a_non_empty_target(self, repo, tmp_path):
         target = tmp_path / "occupied"

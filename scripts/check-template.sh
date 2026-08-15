@@ -23,4 +23,9 @@ tofu init -backend=false -input=false >/dev/null
 tofu validate
 tflint --config "$ROOT/.tflint.hcl"
 
+cd "$tmp_dir/bootstrap"
+tofu init -backend=false -input=false >/dev/null
+tofu validate
+tflint --config "$ROOT/.tflint.hcl"
+
 echo "Template validates."

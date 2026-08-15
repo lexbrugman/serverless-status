@@ -44,9 +44,11 @@ the seam. `modules/renderer` (AWS leg) asserts the manifest's
 `schema_version` at plan time and owns everything that renders and serves.
 
 Modules create only what they own the entire lifecycle of and read
-everything that predates them: the Grafana stack, the Route 53 zone, and the
-state bucket are looked up, never created. Destroying this stack can never
-take down the zone. Providers are configured in roots only; `moved` blocks
+everything that predates them: the Grafana stack and the Route 53 zone are
+looked up, never created. The state bucket is OpenTofu-managed by a
+separate bootstrap root whose own state lives in the instance repository,
+so the main stack can never delete its own state store. Destroying this
+stack can never take down the zone. Providers are configured in roots only; `moved` blocks
 are mandatory on every refactor because master is release.
 
 ## The SMTP dialogue

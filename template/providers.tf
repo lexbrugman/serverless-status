@@ -12,9 +12,11 @@ terraform {
     }
   }
 
-  # The state bucket is created out of band and deliberately unmanaged: a
-  # configuration does not create its own state store. Native locking, no
-  # DynamoDB lock table.
+  # The state bucket is managed by the separate bootstrap/ root (whose own
+  # state is committed to this repository), so this configuration can never
+  # delete its own state store. Native locking, no DynamoDB lock table.
+  # The bucket name must match bootstrap/main.tf and ci.tf — a backend
+  # block cannot read variables.
   backend "s3" {
     bucket       = "CHANGE-ME-state-bucket"
     key          = "serverless-status.tfstate"

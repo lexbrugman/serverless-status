@@ -15,18 +15,26 @@ and a GitHub repository for your private instance.
 
 ## 2. State bucket
 
-Created out of band and deliberately unmanaged — a configuration does not
-create its own state store:
+The bucket belongs to the separate `bootstrap/` root, so the main stack can
+never delete its own state store. That root's state is a local file
+committed to the repository: git predates everything, and the file holds
+only bucket metadata, no secrets.
+
+Pick a bucket name by replacing `CHANGE-ME-state-bucket` across the
+instance (it is a literal in `bootstrap/main.tf`, `providers.tf`, and
+`ci.tf` — a backend block cannot read variables), then:
 
 ```sh
-aws s3api create-bucket --bucket <name> --region <region> \
-  --create-bucket-configuration LocationConstraint=<region>
-aws s3api put-bucket-versioning --bucket <name> \
-  --versioning-configuration Status=Enabled
-aws s3api put-public-access-block --bucket <name> \
-  --public-access-block-configuration \
-  BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+cd bootstrap
+tofu init
+tofu apply                       # admin credentials, once
+git add terraform.tfstate
+git commit -m "Create the state bucket"
+cd ..
 ```
+
+The daily drift workflow re-plans this root read-only, so a console change
+to the bucket is found the next morning like any other drift.
 
 ## 3. The instance
 
