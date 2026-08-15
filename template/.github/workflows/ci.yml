@@ -91,6 +91,6 @@ jobs:
       - name: Apply
         run: |
           set -euo pipefail
-          module_ref="$(grep -om1 'ref=[0-9.]*' main.tf | cut -d= -f2)"
+          module_ref="$(sed -n 's/.*?ref=\([^"]*\)".*/\1/p' page.tf | head -n 1)"
           tofu init -input=false -backend-config=state.auto.tfvars
           tofu apply -input=false -auto-approve -var "page_version=${module_ref}"

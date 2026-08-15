@@ -7,6 +7,8 @@ setup.
 ## Bootstrap
 
 The full walkthrough lives in the public repository's `docs/setup-guide.md`.
+`bin/tofu.sh` is the pinned OpenTofu in a container — alias it once per
+shell (`alias tofu="$PWD/bin/tofu.sh"`) and nothing installs on the host.
 The short version:
 
 1. **Grafana Cloud** — create the stack; create a provisioning access policy

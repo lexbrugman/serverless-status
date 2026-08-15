@@ -36,6 +36,16 @@ A fresh clone of an empty private repository also works as the target —
 The stamper copies the template and pins the module sources to the release
 you cloned. Everything from here on happens inside the instance.
 
+Nothing installs on the host: `bin/tofu.sh` runs OpenTofu in a container
+at exactly the version the pinned release's CI tested — derived from the
+module ref, so a ref bump moves tofu in lockstep. `TF_VAR_*`/`AWS_*` pass
+through and `~/.aws` mounts read-only. Alias it once per shell and every
+command below works verbatim:
+
+```sh
+alias tofu="$PWD/bin/tofu.sh"
+```
+
 The instance separates what you own from what the template owns, in
 three classes. The `*.tfvars` data files are yours. `org_<key>.tf` and
 `page.tf` are yours structurally — one org file per Grafana account,

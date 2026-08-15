@@ -15,8 +15,13 @@ cd "$ROOT"
 : "${TF_VAR_grafana_cloud_tokens:?TF_VAR_grafana_cloud_tokens must be exported}"
 : "${TF_VAR_state_passphrase:?TF_VAR_state_passphrase must be exported}"
 
-plan_role_arn="$(tofu output -raw plan_role_arn)"
-apply_role_arn="$(tofu output -raw apply_role_arn)"
+tofu_bin="$(command -v tofu || true)"
+if [[ -z "$tofu_bin" ]]; then
+  tofu_bin="$ROOT/bin/tofu.sh"
+fi
+
+plan_role_arn="$("$tofu_bin" output -raw plan_role_arn)"
+apply_role_arn="$("$tofu_bin" output -raw apply_role_arn)"
 
 cat <<EOF
 Set in GitHub, under Settings -> Secrets and variables -> Actions:
