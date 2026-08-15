@@ -40,7 +40,7 @@ jobs:
         uses: ./.github/actions/setup-tofu
 
       - name: Assume the plan role
-        uses: aws-actions/configure-aws-credentials@v5.1.1
+        uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
           role-to-assume: ${{ vars.PLAN_ROLE_ARN }}
           aws-region: eu-west-1
@@ -83,7 +83,7 @@ jobs:
         uses: ./.github/actions/setup-tofu
 
       - name: Assume the apply role
-        uses: aws-actions/configure-aws-credentials@v5.1.1
+        uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
           role-to-assume: ${{ vars.APPLY_ROLE_ARN }}
           aws-region: eu-west-1
