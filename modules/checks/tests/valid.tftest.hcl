@@ -25,7 +25,7 @@ override_data {
 override_data {
   target = data.grafana_synthetic_monitoring_probes.main
   values = {
-    probes = { Amsterdam = 11, London = 12 }
+    probes = { Frankfurt = 11, London = 12 }
   }
 }
 

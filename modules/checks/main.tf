@@ -47,7 +47,11 @@ resource "terraform_data" "tenant_quota" {
 }
 
 # A typo'd location must fail the plan with the available names, not a bare
-# missing-key error somewhere in a resource.
+# missing-key error somewhere in a resource. Every check resource
+# depends_on this guard: on the first bootstrap apply the probes read is
+# deferred and the precondition only evaluates mid-apply, so without the
+# ordering the checks would race it into the API with a filtered-empty
+# probe list.
 resource "terraform_data" "probe_locations" {
   input = var.probe_locations
 
@@ -78,6 +82,8 @@ resource "grafana_synthetic_monitoring_check" "http" {
       valid_status_codes = [200]
     }
   }
+
+  depends_on = [terraform_data.probe_locations]
 }
 
 resource "grafana_synthetic_monitoring_check" "ping" {
@@ -94,6 +100,8 @@ resource "grafana_synthetic_monitoring_check" "ping" {
   settings {
     ping {}
   }
+
+  depends_on = [terraform_data.probe_locations]
 }
 
 # The STARTTLS conversation lives in its own module because two consumers
@@ -132,6 +140,8 @@ resource "grafana_synthetic_monitoring_check" "smtp" {
       }
     }
   }
+
+  depends_on = [terraform_data.probe_locations]
 }
 
 # Read credentials for the renderer, scoped to exactly this stack's metrics.

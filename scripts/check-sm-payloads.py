@@ -130,7 +130,7 @@ class MockSMAPI(BaseHTTPRequestHandler):
                 [
                     {
                         "id": 11,
-                        "name": "Amsterdam",
+                        "name": "Frankfurt",
                         "online": True,
                         "public": True,
                         "latitude": 0,

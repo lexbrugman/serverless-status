@@ -52,7 +52,7 @@ variable "stack_slug" {
 variable "probe_locations" {
   description = "Synthetic Monitoring public probe location names to run every check from."
   type        = list(string)
-  default     = ["Amsterdam"]
+  default     = ["Frankfurt"]
 
   validation {
     condition     = length(var.probe_locations) > 0
