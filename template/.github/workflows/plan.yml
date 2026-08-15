@@ -27,10 +27,9 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
 
-      - name: Sync the instance when the pinned release changed
+      - name: Sync the instance
         env:
-          BASE_BRANCH: ${{ github.base_ref }}
-          HEAD_BRANCH: ${{ github.head_ref }}
+          PUSH_BRANCH: ${{ github.head_ref }}
         run: bin/ci-sync.sh
 
       - name: Set up pinned tofu

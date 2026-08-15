@@ -24,17 +24,19 @@ def instance(repo, tmp_path):
     )
     subprocess.run(["git", "init", "-q", str(target)], check=True)
 
-    # A second org, filled data, a user-owned file, and template damage.
-    stencil = (target / "org_example.tf").read_text()
-    (target / "org_acme.tf").write_text(stencil.replace("example", "acme"))
-    page = (target / "page.tf").read_text()
-    (target / "page.tf").write_text(
-        page.replace(
-            "check_manifests    = [module.checks_example.check_manifest]",
-            "check_manifests    = [module.checks_example.check_manifest, "
-            "module.checks_acme.check_manifest]",
+    # A second org in the data file, filled data, a user-owned file, a
+    # hand-made org file for a key the map no longer has, and template
+    # damage.
+    tfvars = target / "instance.auto.tfvars"
+    tfvars.write_text(
+        tfvars.read_text().replace(
+            "orgs = {",
+            'orgs = {\n  acme = {\n    stack_slug               = "acmecorp"'
+            "\n    monthly_execution_budget = 90000\n  }",
         )
     )
+    stencil = (target / "org_example.tf").read_text()
+    (target / "org_zombie.tf").write_text(stencil.replace("example", "zombie"))
     state = (target / "state.tfbackend").read_text()
     (target / "state.tfbackend").write_text(
         state.replace("CHANGE-ME-state-bucket", "my-real-bucket")
@@ -68,6 +70,7 @@ class TestSync:
         wiring = (instance / "wiring" / "ci" / "main.tf").read_text()
         assert "CORRUPTED" not in wiring
         assert not (instance / "wiring" / "stale-leftover.tf").exists()
+        assert not (instance / "org_zombie.tf").exists()
 
         acme = (instance / "org_acme.tf").read_text()
         assert acme.startswith("# Generated from org_example.tf by bin/sync.sh")
@@ -91,3 +94,21 @@ class TestSync:
         )
         assert result.returncode == 1
         assert "no ref given and none found" in result.stderr
+
+    def test_fails_loudly_without_org_keys(self, repo, instance):
+        tfvars = instance / "instance.auto.tfvars"
+        content = tfvars.read_text()
+        start = content.index("orgs = {")
+        end = content.index("\n}", start)
+        tfvars.write_text(content[:start] + "orgs = {" + content[end:])
+        result = run(
+            [
+                str(instance / "bin" / "sync.sh"),
+                "--source",
+                str(repo / "template"),
+                SYNC_REF,
+            ],
+            cwd=instance,
+        )
+        assert result.returncode == 1
+        assert "no org keys found" in result.stderr

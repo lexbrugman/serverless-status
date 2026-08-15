@@ -35,7 +35,9 @@ jobs:
   apply:
     if: github.event_name == 'push' && vars.PLAN_ROLE_ARN != ''
     permissions:
-      contents: read
+      # write on contents: a direct push that changed the orgs map gets
+      # its regenerated structure committed back before applying.
+      contents: write
       id-token: write
     secrets: inherit
     uses: ./.github/workflows/apply.yml

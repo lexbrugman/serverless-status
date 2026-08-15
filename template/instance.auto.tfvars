@@ -22,10 +22,11 @@ site = {
 # All optional; defaults shown in the module.
 page = {}
 
-# The Grafana accounts feeding this page. Adding an org is: an entry here,
-# its token in TF_VAR_grafana_cloud_tokens, one copy of org_example.tf
-# under the new key, and its entries in page.tf. Removing one is the
-# reverse; its checks then fail the plan until reassigned or deleted.
+# The Grafana accounts feeding this page. Adding an org is: an entry here
+# plus its token in the GRAFANA_CLOUD_TOKENS secret — CI regenerates
+# org_<key>.tf and page.tf from this map on its next run (bin/sync.sh
+# does the same locally). Removing one is the reverse; its checks then
+# fail the plan until reassigned or deleted.
 orgs = {
   example = {
     stack_slug = "examplecorp"

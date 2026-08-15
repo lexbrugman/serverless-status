@@ -37,14 +37,16 @@ A fresh clone of an empty private repository also works as the target —
 The stamper copies the template and pins the module sources to the release
 you cloned.
 
-The instance separates what you own from what the template owns, in
-three classes. The data files — `*.tfvars` and `state.tfbackend` — are
-yours. `org_<key>.tf` and
-`page.tf` are yours structurally — one org file per Grafana account,
-copied from `org_example.tf`, plus that org's entry in `page.tf`'s two
-lists; they also carry the module pins Renovate manages. Everything else —
-`wiring/` and the root `.tf` shims marked "do not edit" — is logic a
-template update overwrites wholesale. Fill in the data files:
+The instance separates what you own from what the template owns. The
+data files — `*.tfvars` and `state.tfbackend` — are yours, and they are
+the only files you ever edit. Everything else is the template's:
+`org_<key>.tf` and `page.tf` are generated from the orgs map in
+`instance.auto.tfvars` — one org file per Grafana account, plus that
+org's entries in `page.tf`'s lists, carrying the module pins Renovate
+manages — and `wiring/`, `bin/`, the workflows, and the root `.tf` shims
+are logic. `bin/sync.sh` rewrites that whole class, and CI runs it before
+every plan and apply, so hand edits outside the data files do not
+survive. Fill in the data files:
 
 - `instance.auto.tfvars` — who you are: domain, zone, site identity, your
   instance repository, and your Grafana account(s) keyed by org;
@@ -110,8 +112,9 @@ step 2).
 ## 4. Bootstrap from CI
 
 Run the **Bootstrap** workflow (Actions → Bootstrap → Run workflow) with
-phase `checks`. It creates the state bucket (committing the bootstrap
-root's state back to the repository), adopts the hand-made trust, and
+phase `checks`. It generates the org structure from your orgs map
+(committed back to the repository, like every sync), creates the state
+bucket (its state also committed back), adopts the hand-made trust, and
 applies only the Grafana checks.
 
 ## 5. Step zero — SMTP first
@@ -156,17 +159,17 @@ free second opinion.
 ## 8. Upgrading
 
 Upgrades run themselves: the instance's Renovate opens a PR bumping the
-pinned `?ref=`, and CI notices the bump and rebuilds everything the
-template owns from that release, committed onto the same branch as "Sync
-instance to <ref>". The plan comment then reviews the synced tree — the
-tree the merge applies.
+pinned `?ref=`, and the sync CI runs before every plan rebuilds everything
+the template owns from that release, committing "Sync instance to <ref>"
+onto the same branch. The plan comment then reviews the
+synced tree — the tree the merge applies.
 
 The rebuild is `bin/sync.sh`. Logic files are replaced wholesale (which
 also removes files the release dropped); `org_<key>.tf` and `page.tf`
-regenerate from the release's stencil over your existing org set — which
-is why org files must stay stencil-pure: hand edits to them do not
-survive a sync, and belong in the data files or upstream. Your data
-files, the state and lock files, and anything you added outside the
+regenerate from the release's stencil, one org per key in the orgs map
+in `instance.auto.tfvars`. Hand edits to generated files do not survive
+a sync — changes belong in the data files or upstream. Your data files,
+the state and lock files, and anything you added outside the
 template-owned classes are never touched.
 
 One case needs a hand: when a release changes the workflow files

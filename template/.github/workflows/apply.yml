@@ -6,7 +6,9 @@ on:
   workflow_call:
 
 permissions:
-  contents: read
+  # write on contents: a direct push that changed the orgs map gets its
+  # regenerated structure committed back before applying.
+  contents: write
   id-token: write
 
 env:
@@ -24,6 +26,11 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7.0.1
+
+      - name: Sync the instance
+        env:
+          PUSH_BRANCH: ${{ github.ref_name }}
+        run: bin/ci-sync.sh
 
       - name: Set up pinned tofu
         uses: ./.github/actions/setup-tofu

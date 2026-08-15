@@ -14,11 +14,10 @@ The short version — no local tooling beyond git and a browser:
    with an expiry, per organisation.
 2. **Fill in the data files** — `instance.auto.tfvars` (identity and
    orgs), `state.tfbackend` (the bucket name, stated once), and
-   `checks.auto.tfvars` (every check names its org). Your values live only
-   in the data files; your structure lives only in `org_<key>.tf` (copy
-   `org_example.tf` per Grafana account) and `page.tf`. Everything else —
-   `wiring/`, `bin/`, the workflows, and the root files marked "do not
-   edit" — is logic a sync overwrites.
+   `checks.auto.tfvars` (every check names its org). They are the only
+   files you edit: everything else, `org_<key>.tf` and `page.tf`
+   included, is generated from them by `bin/sync.sh`, which CI runs
+   before every plan and apply.
 3. **OIDC trust, by hand once** — create the GitHub OIDC provider and an
    admin role named `serverless-status-apply` in the AWS console; set the
    `APPLY_ROLE_ARN` variable and the `GRAFANA_CLOUD_TOKENS` and
@@ -33,8 +32,8 @@ The short version — no local tooling beyond git and a browser:
 
 Renovate PRs bump the pinned release ref; CI rebuilds the template-owned
 files from that release onto the same branch (`bin/sync.sh`), and the plan
-comment reviews the result. Your data files, org set, and state always
-survive a sync.
+comment reviews the result. Your data files and state always survive a
+sync.
 
 ## Working locally
 

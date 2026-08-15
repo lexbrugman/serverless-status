@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Rebuild everything the template owns from the pinned release, preserving
-# what is yours: the data files, the state and lock files, and your org
-# set. Logic files are replaced wholesale; org_<key>.tf and page.tf are
-# regenerated from the release's stencil over your existing org keys, so
-# they must stay stencil-pure — hand edits to them do not survive a sync.
+# what is yours: the data files and the state and lock files. Logic files
+# are replaced wholesale; org_<key>.tf and page.tf are generated from the
+# release's stencil, one org per key in the orgs map in
+# instance.auto.tfvars — hand edits to them do not survive a sync.
 #
 # Usage: sync.sh [REF]   (default: the ref pinned in page.tf)
 set -euo pipefail
@@ -55,12 +55,22 @@ else
   template="$source_dir"
 fi
 
-# The org set, read from the structural files themselves.
-orgs=()
-for file in org_*.tf; do
-  key="${file#org_}"
-  orgs+=("${key%.tf}")
-done
+# The org set, read from the orgs map in instance.auto.tfvars: the data
+# file is the single source of truth, and every org_<key>.tf is generated
+# from it. Keys are sorted so the generated lists are stable.
+mapfile -t orgs < <(awk '
+  /^orgs[[:space:]]*=[[:space:]]*{/, /^}/ {
+    if ($0 ~ /^[[:space:]]+[A-Za-z0-9_-]+[[:space:]]*=[[:space:]]*{/) {
+      sub(/^[[:space:]]+/, "")
+      sub(/[[:space:]]*=.*/, "")
+      print
+    }
+  }
+' instance.auto.tfvars | sort)
+if [[ ${#orgs[@]} -eq 0 ]]; then
+  echo "ERROR: no org keys found in the orgs map in instance.auto.tfvars." >&2
+  exit 1
+fi
 
 # A fresh render of the template, refs stamped.
 render="$work/render"
