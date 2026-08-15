@@ -1,5 +1,43 @@
+# Do not edit — wiring a template update overwrites. Values live in the
+# *.tfvars data files and, for the secrets, in the environment.
+
+variable "domain" {
+  description = "Hostname the status page is served on."
+  type        = string
+}
+
+variable "dns_zone_name" {
+  description = "Name of the pre-existing Route 53 hosted zone."
+  type        = string
+}
+
+variable "aws_region" {
+  description = "Region the renderer lives in."
+  type        = string
+}
+
+variable "github_repository" {
+  description = "owner/name of this instance repository, for CI's OIDC trust."
+  type        = string
+}
+
+variable "state_bucket" {
+  description = "Name of the state bucket; must match backend.tfvars and bootstrap/terraform.tfvars."
+  type        = string
+}
+
+variable "site" {
+  description = "Page identity (see instance.auto.tfvars); shape and validation live in the renderer module."
+  type        = any
+}
+
+variable "page" {
+  description = "Page behavior overrides (see instance.auto.tfvars); shape and validation live in the renderer module."
+  type        = any
+}
+
 variable "orgs" {
-  description = "The Grafana Cloud accounts feeding this page, keyed by a stable org identifier — one account per organisation, each keeping its own billing and execution budget. Provider configurations cannot be created dynamically, so each key also has one copied per-org block in providers.tf and main.tf."
+  description = "The Grafana Cloud accounts feeding this page, keyed by a stable org identifier — one account per organisation, each keeping its own billing and execution budget. Provider configurations cannot be created dynamically, so each key also has one org_<key>.tf file (copied from org_example.tf) and its entries in page.tf."
   type = map(object({
     stack_slug               = string
     monthly_execution_budget = number

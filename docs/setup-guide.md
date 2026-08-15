@@ -34,17 +34,23 @@ A fresh clone of an empty private repository also works as the target —
 `git init`/`git remote` steps fall away.
 
 The stamper copies the template and pins the module sources to the release
-you cloned. Everything from here on happens inside the instance. Fill in:
+you cloned. Everything from here on happens inside the instance.
 
-- `main.tf` — domain, zone, site identity;
+The instance separates what you own from what the template owns, in
+three classes. The `*.tfvars` data files are yours. `org_<key>.tf` and
+`page.tf` are yours structurally — one org file per Grafana account,
+copied from `org_example.tf`, plus that org's entry in `page.tf`'s two
+lists; they also carry the module pins Renovate manages. Everything else —
+`wiring/` and the root `.tf` shims marked "do not edit" — is logic a
+template update overwrites wholesale. Fill in the data files:
+
+- `instance.auto.tfvars` — domain, zone, region, site identity, your
+  instance repository, and the state bucket name;
 - `orgs.auto.tfvars` — your Grafana account(s), keyed by org;
 - `checks.auto.tfvars` — your checks, each naming its org;
-- `ci.tf` — your instance repository;
-- the regions in `providers.tf` and `bootstrap/main.tf`;
-- the state bucket name: pick one and replace `CHANGE-ME-state-bucket`
-  everywhere it appears (`bootstrap/main.tf`, `providers.tf`, `ci.tf` — a
-  backend block cannot read variables, so the name is a literal in three
-  places).
+- `backend.tfvars` and `bootstrap/terraform.tfvars` — the state bucket
+  again: a backend block cannot read variables, so one search-and-replace
+  of `CHANGE-ME-state-bucket` fills all three data files.
 
 Set the two secrets in your shell (never in a file). The provisioning
 token is the one from step 1. The state passphrase is a secret you create
@@ -90,7 +96,7 @@ whether the STARTTLS dialogue is stored in order. Nothing downstream is
 built until this passes.
 
 ```sh
-tofu init
+tofu init -backend-config=backend.tfvars
 tofu apply -target=module.checks_example
 ```
 
@@ -121,8 +127,8 @@ In the instance repository, create the protected `production` environment,
 then add:
 
 - environment secrets `GRAFANA_CLOUD_TOKENS` (the full map) and `STATE_PASSPHRASE`;
-- repository variables `PLAN_ROLE_ARN` and `APPLY_ROLE_ARN` (from the first
-  apply's IAM roles).
+- repository variables `PLAN_ROLE_ARN` and `APPLY_ROLE_ARN` (`tofu output
+  plan_role_arn` / `apply_role_arn`).
 
 From then on: PRs get a plan comment, master pushes apply.
 
@@ -131,3 +137,20 @@ From then on: PRs get a plan comment, master pushes apply.
 Confirm the certificate from a device that never trusted the old page, then
 repoint your status hostname. Leave any previous monitoring running as a
 free second opinion.
+
+## 8. Upgrading
+
+Module upgrades arrive on their own: the instance's Renovate opens a PR
+bumping the pinned `?ref=`, and the plan comment is the review. The copied
+scaffolding follows the file classes: on a ref bump that crosses template
+changes, overwrite the logic wholesale — `wiring/`, the root `.tf` files
+marked "do not edit", `bootstrap/main.tf`, the workflows, and `bin/` — from
+the new template; they carry none of your values and none of the module
+pins. Then diff `org_example.tf` and `page.tf` for pattern changes to port
+into your copies:
+
+```sh
+git -C serverless-status diff <old tag>..<new tag> -- template/
+```
+
+Your `*.tfvars` files are never the template's to touch.

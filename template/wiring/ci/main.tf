@@ -2,10 +2,25 @@
 # credentials. The first apply runs locally with admin credentials because
 # these roles are what CI will later assume — CI cannot bootstrap its own
 # trust.
-locals {
-  # owner/name of this instance repository.
-  github_repository = "example-org/serverless-status-instance"
-  state_bucket      = "CHANGE-ME-state-bucket"
+terraform {
+  required_version = ">= 1.10"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 6.0"
+    }
+  }
+}
+
+variable "github_repository" {
+  description = "owner/name of the instance repository."
+  type        = string
+}
+
+variable "state_bucket" {
+  description = "Name of the state bucket the roles may read and lock."
+  type        = string
 }
 
 resource "aws_iam_openid_connect_provider" "github" {
@@ -19,14 +34,14 @@ resource "aws_iam_openid_connect_provider" "github" {
 data "aws_iam_policy_document" "state_access" {
   statement {
     actions   = ["s3:ListBucket"]
-    resources = ["arn:aws:s3:::${local.state_bucket}"]
+    resources = ["arn:aws:s3:::${var.state_bucket}"]
   }
 
   statement {
     # Native locking writes a .tflock object next to the state, so plan
     # needs writes on the state prefix too.
     actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
-    resources = ["arn:aws:s3:::${local.state_bucket}/*"]
+    resources = ["arn:aws:s3:::${var.state_bucket}/*"]
   }
 }
 
@@ -48,7 +63,7 @@ data "aws_iam_policy_document" "plan_assume" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${local.github_repository}:*"]
+      values   = ["repo:${var.github_repository}:*"]
     }
   }
 }
@@ -88,7 +103,7 @@ data "aws_iam_policy_document" "apply_assume" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${local.github_repository}:environment:production"]
+      values   = ["repo:${var.github_repository}:environment:production"]
     }
   }
 }
@@ -104,4 +119,12 @@ resource "aws_iam_role" "apply" {
 resource "aws_iam_role_policy_attachment" "apply_admin" {
   role       = aws_iam_role.apply.name
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
+}
+
+output "plan_role_arn" {
+  value = aws_iam_role.plan.arn
+}
+
+output "apply_role_arn" {
+  value = aws_iam_role.apply.arn
 }

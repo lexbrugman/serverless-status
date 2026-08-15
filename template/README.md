@@ -12,10 +12,13 @@ The short version:
 1. **Grafana Cloud** — create the stack; create a provisioning access policy
    and token (scopes `accesspolicies:read|write|delete`, `stacks:read`),
    with an expiry.
-2. **Fill in** `main.tf` locals, `ci.tf` locals, `orgs.auto.tfvars`,
-   `checks.auto.tfvars` (every check names its org), and
-   a state bucket name replacing `CHANGE-ME-state-bucket` everywhere it
-   appears.
+2. **Fill in the data files** — `instance.auto.tfvars`,
+   `orgs.auto.tfvars`, `checks.auto.tfvars` (every check names its org),
+   and a state bucket name replacing `CHANGE-ME-state-bucket` everywhere it
+   appears. Your values live only in `*.tfvars`; your structure lives only
+   in `org_<key>.tf` (copy `org_example.tf` per Grafana account) and
+   `page.tf`. Everything else — `wiring/` and the root files marked "do
+   not edit" — is logic a template update overwrites.
 3. **State bucket** — `cd bootstrap && tofu init && tofu apply`, then
    commit the resulting `terraform.tfstate` (bucket metadata only, no
    secrets).
@@ -25,7 +28,7 @@ The short version:
    ```sh
    head -c 24 /dev/urandom | base64   # the passphrase — store it, CI needs it too
    export TF_VAR_grafana_cloud_tokens='{ example = "..." }' TF_VAR_state_passphrase=...
-   tofu init
+   tofu init -backend-config=backend.tfvars
    tofu apply -target=module.checks_example   # step zero: SMTP checks first
    ```
 

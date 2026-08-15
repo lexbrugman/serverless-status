@@ -67,7 +67,7 @@ fi
 # The committed template floats on master; new-instance.sh stamps the
 # release at bootstrap. A pinned ref here would put Renovate on a treadmill:
 # merging its bump PR cuts a new tag, which makes the template stale again.
-mapfile -t template_tf < <(discover 'template/*.tf')
+mapfile -t template_tf < <(discover 'template/*.tf' 'template/*/*.tf' 'template/*/*/*.tf')
 require_found "template .tf files" "${#template_tf[@]}"
 echo "template ref guard (${#template_tf[@]} files)"
 if grep -n '?ref=' "${template_tf[@]}" | grep -v '?ref=master'; then

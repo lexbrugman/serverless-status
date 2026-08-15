@@ -45,7 +45,7 @@ class TestNewInstance:
         target = tmp_path / "instance"
         result = run([str(repo / "scripts" / "new-instance.sh"), str(target)], cwd=repo)
         assert result.returncode == 0, result.stderr
-        stamped = (target / "main.tf").read_text()
+        stamped = "".join(f.read_text() for f in target.rglob("*.tf"))
         assert "?ref=master" not in stamped
         assert stamped.count(f"?ref={TAG}") == 2
         assert (target / "checks.auto.tfvars").exists()

@@ -55,7 +55,7 @@ Next steps:
        export TF_VAR_state_passphrase=...
   4. Create the state bucket, then commit its state file:
        (cd bootstrap && tofu init && tofu apply)
-  5. tofu init
+  5. tofu init -backend-config=backend.tfvars
   6. Step zero — apply the SMTP checks alone and verify port-25 egress and
      the stored dialogue order before anything else:
        tofu apply -target=module.checks_example

@@ -1,3 +1,5 @@
+# Do not edit — wiring a template update overwrites. Your values live in
+# the *.tfvars data files.
 terraform {
   required_version = ">= 1.10"
 
@@ -12,19 +14,11 @@ terraform {
     }
   }
 
-  # The state bucket is managed by the separate bootstrap/ root (whose own
-  # state is committed to this repository), so this configuration can never
-  # delete its own state store. Native locking, no DynamoDB lock table.
-  # The bucket name must match bootstrap/main.tf and ci.tf — a backend
-  # block cannot read variables.
-  backend "s3" {
-    bucket       = "CHANGE-ME-state-bucket"
-    key          = "serverless-status.tfstate"
-    region       = "eu-west-1"
-    use_lockfile = true
-  }
+  # A backend block cannot read variables; the values arrive at init:
+  #   tofu init -backend-config=backend.tfvars
+  backend "s3" {}
 
-  # The Grafana metrics-read token lands in state as a resource attribute;
+  # The Grafana metrics-read tokens land in state as resource attributes;
   # client-side encryption is the answer. The aws_kms key provider is the
   # one-block upgrade that removes the passphrase secret entirely (~$1/month
   # for the customer-managed key).
@@ -49,27 +43,8 @@ terraform {
   }
 }
 
-# --- per-org providers: example ---------------------------------------------
-# One pair per org key, alongside the org's block in main.tf. The sm
-# credentials come out of that block's installation resource — one apply
-# hands the credential from one control plane to the other, which is the
-# reason this stack is OpenTofu in the first place.
-
-provider "grafana" {
-  alias                     = "example_cloud"
-  cloud_access_policy_token = var.grafana_cloud_tokens["example"]
-}
-
-provider "grafana" {
-  alias           = "example_sm"
-  sm_access_token = grafana_synthetic_monitoring_installation.example.sm_access_token
-  sm_url          = grafana_synthetic_monitoring_installation.example.stack_sm_api_url
-}
-
-# --- end per-org providers ---------------------------------------------------
-
 provider "aws" {
-  region = "eu-west-1"
+  region = var.aws_region
 }
 
 # ACM certificates for CloudFront must live in us-east-1.

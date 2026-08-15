@@ -1,0 +1,76 @@
+# One file per Grafana account: copy this file for a new org, replace
+# every "example" with the org's key (as in orgs.auto.tfvars), and add the
+# new module to the two lists in page.tf. Provider configurations cannot be
+# created dynamically, so this per-org file is the ceiling of what OpenTofu
+# allows; everything else about an org — its checks, its budget, its
+# credentials — follows from the org key.
+
+provider "grafana" {
+  alias                     = "example_cloud"
+  cloud_access_policy_token = var.grafana_cloud_tokens["example"]
+}
+
+# The sm credentials come out of this file's installation resource — one
+# apply hands the credential from one control plane to the other, which is
+# the reason this stack is OpenTofu in the first place.
+provider "grafana" {
+  alias           = "example_sm"
+  sm_access_token = grafana_synthetic_monitoring_installation.example.sm_access_token
+  sm_url          = grafana_synthetic_monitoring_installation.example.stack_sm_api_url
+}
+
+data "grafana_cloud_stack" "example" {
+  provider = grafana.example_cloud
+  slug     = var.orgs["example"].stack_slug
+}
+
+# Synthetic Monitoring installation: the bootstrap that turns a stack into
+# something probes can publish to. Lives here because the sm provider is
+# configured from its outputs.
+resource "grafana_cloud_access_policy" "example_sm_publish" {
+  provider = grafana.example_cloud
+
+  region       = data.grafana_cloud_stack.example.region_slug
+  name         = "${var.orgs["example"].stack_slug}-sm-publish"
+  display_name = "Synthetic Monitoring publisher (${var.orgs["example"].stack_slug})"
+  scopes       = ["metrics:write", "stacks:read", "logs:write", "traces:write"]
+
+  realm {
+    type       = "stack"
+    identifier = data.grafana_cloud_stack.example.id
+  }
+}
+
+resource "grafana_cloud_access_policy_token" "example_sm_publish" {
+  provider = grafana.example_cloud
+
+  region           = data.grafana_cloud_stack.example.region_slug
+  access_policy_id = grafana_cloud_access_policy.example_sm_publish.policy_id
+  name             = "${var.orgs["example"].stack_slug}-sm-publish"
+}
+
+resource "grafana_synthetic_monitoring_installation" "example" {
+  provider = grafana.example_cloud
+
+  stack_id              = data.grafana_cloud_stack.example.id
+  metrics_publisher_key = grafana_cloud_access_policy_token.example_sm_publish.token
+}
+
+# The ref is stamped from the release you cloned; see docs/setup-guide.md.
+module "checks_example" {
+  source = "github.com/lexbrugman/serverless-status//modules/checks?ref=master"
+
+  providers = {
+    grafana.cloud = grafana.example_cloud
+    grafana.sm    = grafana.example_sm
+  }
+
+  stack_slug               = var.orgs["example"].stack_slug
+  checks                   = module.routing.org_checks["example"]
+  monthly_execution_budget = var.orgs["example"].monthly_execution_budget
+
+  sm_api_url      = grafana_synthetic_monitoring_installation.example.stack_sm_api_url
+  sm_access_token = grafana_synthetic_monitoring_installation.example.sm_access_token
+
+  depends_on = [grafana_synthetic_monitoring_installation.example]
+}
