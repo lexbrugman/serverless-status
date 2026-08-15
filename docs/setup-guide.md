@@ -13,16 +13,40 @@ and a GitHub repository for your private instance.
    it is the only Grafana secret that ever leaves Grafana, and it lives
    solely in `TF_VAR_grafana_cloud_token`.
 
-## 2. State bucket
+## 2. The instance
 
-The bucket belongs to the separate `bootstrap/` root, so the main stack can
-never delete its own state store. That root's state is a local file
-committed to the repository: git predates everything, and the file holds
-only bucket metadata, no secrets.
+From a release checkout of this repository:
 
-Pick a bucket name by replacing `CHANGE-ME-state-bucket` across the
-instance (it is a literal in `bootstrap/main.tf`, `providers.tf`, and
-`ci.tf` — a backend block cannot read variables), then:
+```sh
+scripts/new-instance.sh ../my-status-instance
+cd ../my-status-instance
+```
+
+This copies the template and pins the module sources to the release you
+cloned. Everything from here on happens inside the instance. Fill in:
+
+- `main.tf` — domain, zone, stack slug, site identity;
+- `checks.auto.tfvars` — your checks;
+- `ci.tf` — your instance repository;
+- the regions in `providers.tf` and `bootstrap/main.tf`;
+- the state bucket name: pick one and replace `CHANGE-ME-state-bucket`
+  everywhere it appears (`bootstrap/main.tf`, `providers.tf`, `ci.tf` — a
+  backend block cannot read variables, so the name is a literal in three
+  places).
+
+Set the two secrets in your shell (never in a file):
+
+```sh
+export TF_VAR_grafana_cloud_token=<provisioning token>
+export TF_VAR_state_passphrase=<16+ characters>
+```
+
+## 3. State bucket
+
+The bucket belongs to the instance's separate `bootstrap/` root, so the
+main stack can never delete its own state store. That root's state is a
+local file committed to the repository: git predates everything, and the
+file holds only bucket metadata, no secrets.
 
 ```sh
 cd bootstrap
@@ -35,29 +59,6 @@ cd ..
 
 The daily drift workflow re-plans this root read-only, so a console change
 to the bucket is found the next morning like any other drift.
-
-## 3. The instance
-
-From a release checkout of this repository:
-
-```sh
-scripts/new-instance.sh ../my-status-instance
-```
-
-This copies the template and pins the module sources to the release you
-cloned. Fill in:
-
-- `main.tf` — domain, zone, stack slug, site identity;
-- `providers.tf` — the state bucket and regions;
-- `ci.tf` — your instance repository and the state bucket;
-- `checks.auto.tfvars` — your checks.
-
-Set the two secrets in your shell (never in a file):
-
-```sh
-export TF_VAR_grafana_cloud_token=<provisioning token>
-export TF_VAR_state_passphrase=<16+ characters>
-```
 
 ## 4. Step zero — SMTP first
 

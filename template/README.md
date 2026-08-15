@@ -12,10 +12,12 @@ The short version:
 1. **Grafana Cloud** — create the stack; create a provisioning access policy
    and token (scopes `accesspolicies:read|write|delete`, `stacks:read`),
    with an expiry.
-2. **State bucket** — replace `CHANGE-ME-state-bucket` everywhere it
-   appears, then `cd bootstrap && tofu init && tofu apply` and commit the
-   resulting `terraform.tfstate` (bucket metadata only, no secrets).
-3. **Fill in** `main.tf` locals, `ci.tf` locals, and `checks.auto.tfvars`.
+2. **Fill in** `main.tf` locals, `ci.tf` locals, `checks.auto.tfvars`, and
+   a state bucket name replacing `CHANGE-ME-state-bucket` everywhere it
+   appears.
+3. **State bucket** — `cd bootstrap && tofu init && tofu apply`, then
+   commit the resulting `terraform.tfstate` (bucket metadata only, no
+   secrets).
 4. **First apply runs locally** with admin credentials (`ci.tf` creates the
    OIDC roles CI will later assume):
 
