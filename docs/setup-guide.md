@@ -122,20 +122,19 @@ credentials because `ci.tf` creates the OIDC roles CI will later assume.
 
 ## 6. Hand CI the wheel
 
-With the two `TF_VAR` secrets still exported and an authenticated `gh`:
+With the two `TF_VAR` secrets still exported:
 
 ```sh
 bin/ci-handover.sh
 ```
 
-It pushes the repository secrets (`GRAFANA_CLOUD_TOKENS`,
-`STATE_PASSPHRASE`), the role-ARN repository variables (`PLAN_ROLE_ARN`,
-`APPLY_ROLE_ARN`, from the apply's outputs), and creates the `production`
-environment — whose protection rules remain yours to set in the console.
-Secrets sit at repository level because the plan and drift jobs run outside
-any environment; the environment's job is gating the apply.
-
-Without `gh`, set those five things by hand to the same effect.
+It prints every name and value to paste into GitHub: the repository
+secrets (`GRAFANA_CLOUD_TOKENS`, `STATE_PASSPHRASE`), the role-ARN
+repository variables (`PLAN_ROLE_ARN`, `APPLY_ROLE_ARN`, from the apply's
+outputs), and the `production` environment to create — whose protection
+rules are yours to choose. Secrets sit at repository level because the
+plan and drift jobs run outside any environment; the environment's job is
+gating the apply.
 
 From then on: PRs get a plan comment, master pushes apply.
 

@@ -35,8 +35,7 @@ The short version:
 
    Watch `probe_success` in Grafana to confirm the probes egress port 25,
    and verify the stored SMTP dialogue order, before applying the rest.
-5. **Hand CI the wheel** — `bin/ci-handover.sh` (authenticated `gh`,
-   `TF_VAR` secrets still exported): it sets the repository secrets and
-   role-ARN variables and creates the `production` environment. Protect
-   that environment in the console, and let master pushes apply from then
-   on.
+5. **Hand CI the wheel** — `bin/ci-handover.sh` (`TF_VAR` secrets still
+   exported) prints every name and value to paste into GitHub: repository
+   secrets, role-ARN variables, and the `production` environment to create
+   and protect. From then on, master pushes apply.
