@@ -6,7 +6,8 @@ dns_zone_name = "example.com"
 
 # This repository as the OIDC token's sub claim spells it: plain
 # owner/name, or owner@id/name@id when the organisation uses immutable-ID
-# subject claims. The Bootstrap workflow's token-identity step prints it.
+# subject claims — the ids are the numeric org and repository ids (see
+# docs/setup-guide.md).
 github_repository = "example-org/serverless-status-instance"
 
 site = {

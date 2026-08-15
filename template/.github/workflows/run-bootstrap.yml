@@ -33,9 +33,6 @@ jobs:
       - name: Set up pinned tofu
         uses: ./.github/actions/setup-tofu
 
-      - name: Show the token identity
-        run: bin/ci-token-identity.sh
-
       - name: Assume the apply role
         uses: aws-actions/configure-aws-credentials@v6.2.3
         with:

@@ -91,9 +91,12 @@ policy:
    The wizard's filter fields often produce something narrower, and the
    bootstrap job authenticates with an environment-flavoured subject that
    a branch-filtered trust rejects. Organisations with immutable-ID
-   subject claims spell the repository as `owner@id/name@id` — the
-   Bootstrap workflow's token-identity step prints the authoritative
-   value; use it verbatim here and as `github_repository` in
+   subject claims spell the repository as `owner@id/name@id`, where the
+   ids are numeric: the org id from
+   `https://api.github.com/orgs/<owner>`, and the repository id — the API
+   keeps private repositories behind a token — from the repo page's HTML
+   source, in the `octolytics-dimension-repository_id` meta tag.
+   Use that spelling both here and as `github_repository` in
    `instance.auto.tfvars`, or no pattern will match. The first apply
    replaces this policy with the managed one, narrowed to the production
    environment.

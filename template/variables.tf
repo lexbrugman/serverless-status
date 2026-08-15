@@ -12,7 +12,7 @@ variable "dns_zone_name" {
 }
 
 variable "github_repository" {
-  description = "This instance repository exactly as the OIDC token's sub claim spells it — plain owner/name, or owner@id/name@id for organisations with immutable-ID subject claims. The Bootstrap workflow's token-identity step prints the authoritative value."
+  description = "This instance repository exactly as the OIDC token's sub claim spells it — plain owner/name, or owner@id/name@id for organisations with immutable-ID subject claims (the ids are the numeric org and repository ids; see docs/setup-guide.md)."
   type        = string
 }
 
