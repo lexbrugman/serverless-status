@@ -35,7 +35,8 @@ The short version:
 
    Watch `probe_success` in Grafana to confirm the probes egress port 25,
    and verify the stored SMTP dialogue order, before applying the rest.
-5. **Hand CI the wheel** — add `GRAFANA_CLOUD_TOKENS` (the full map) and `STATE_PASSPHRASE`
-   as secrets on the protected `production` environment, the two role ARNs
-   as `PLAN_ROLE_ARN` / `APPLY_ROLE_ARN` repository variables, and let
-   master pushes apply from then on.
+5. **Hand CI the wheel** — `bin/ci-handover.sh` (authenticated `gh`,
+   `TF_VAR` secrets still exported): it sets the repository secrets and
+   role-ARN variables and creates the `production` environment. Protect
+   that environment in the console, and let master pushes apply from then
+   on.

@@ -122,12 +122,20 @@ credentials because `ci.tf` creates the OIDC roles CI will later assume.
 
 ## 6. Hand CI the wheel
 
-In the instance repository, create the protected `production` environment,
-then add:
+With the two `TF_VAR` secrets still exported and an authenticated `gh`:
 
-- environment secrets `GRAFANA_CLOUD_TOKENS` (the full map) and `STATE_PASSPHRASE`;
-- repository variables `PLAN_ROLE_ARN` and `APPLY_ROLE_ARN` (`tofu output
-  plan_role_arn` / `apply_role_arn`).
+```sh
+bin/ci-handover.sh
+```
+
+It pushes the repository secrets (`GRAFANA_CLOUD_TOKENS`,
+`STATE_PASSPHRASE`), the role-ARN repository variables (`PLAN_ROLE_ARN`,
+`APPLY_ROLE_ARN`, from the apply's outputs), and creates the `production`
+environment — whose protection rules remain yours to set in the console.
+Secrets sit at repository level because the plan and drift jobs run outside
+any environment; the environment's job is gating the apply.
+
+Without `gh`, set those five things by hand to the same effect.
 
 From then on: PRs get a plan comment, master pushes apply.
 

@@ -58,5 +58,6 @@ Next steps:
   6. Step zero — apply the SMTP checks alone and verify port-25 egress and
      the stored dialogue order before anything else:
        tofu apply -target=module.checks_example
+  7. After the full apply, hand CI the wheel: bin/ci-handover.sh
 See docs/setup-guide.md in the public repository for the full walkthrough.
 EOF
