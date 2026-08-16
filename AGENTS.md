@@ -18,6 +18,10 @@ that are not derivable from the code.
   (`# shellcheck disable`, `# noqa`) needs a genuinely unfixable false
   positive plus a written justification — as of today none exist, and adding
   the first one is a decision, not a convenience.
+- actionlint resolves a `./.github/workflows/...` reference from the
+  nearest git root, so the template's workflows are linted from a staged
+  copy that is one; linting them in place reports every reusable workflow
+  as missing.
 - File discovery uses `git ls-files --cached --others --exclude-standard`,
   so uncommitted work is linted locally before it can reach CI, and every
   discovery hard-errors when it returns empty — a rename must fail loudly,
@@ -38,16 +42,23 @@ that are not derivable from the code.
   layer are process glue and declarations, covered by CI executing them for
   real and by `tofu test`. Do not add mocked tests to glue — they test the
   mocks.
-- **Every guard is verified by mutation.** Break the tree once per guard,
-  watch the run fail with that guard's message, restore. CI only ever runs
-  over a compliant tree, so a guard silently unwired stays green everywhere;
-  only a red run proves the wiring. This applies to the budget precondition,
-  every `checks` validation, the manifest schema-version assertion, the
-  identity sweep, the template-ref guard, and the empty-discovery guards in
-  `lint.sh`.
+- **Every guard is verified by mutation, without exception.** Break the
+  tree once per guard, watch the run fail with that guard's own message,
+  restore. CI only ever runs over a compliant tree, so a guard silently
+  unwired stays green everywhere; only a red run proves the wiring. This
+  covers preconditions, input validations, the repo-wide sweeps in
+  `lint.sh`, and the payload and template assertions — a new guard is not
+  finished until it has failed once on purpose.
 - Module input validation is additionally covered by `.tftest.hcl` files
   using `expect_failures`, so invalid input being rejected is asserted
   automatically, not only mutation-verified.
+- A test that runs a repository script builds its fixture from a
+  disposable clone carrying a fake release tag. CI checks out without
+  tags, so a suite that reads the real repository's tag state passes
+  locally and fails there.
+- In `tofu test`, each `run` states the `override_data` it needs. A
+  file-level override of an address some run also overrides is ignored
+  wherever that happens, and says so once per run.
 - DynamoDB behavior is exercised with `moto` in-process; the main gate never
   requires a container runtime. The Lambda-runtime integration job exists
   precisely for what moto cannot catch: import errors, handler signature,
@@ -103,6 +114,33 @@ that are not derivable from the code.
   actually sets it; a default that is the only value ever used is a
   constant.
 
+## OpenTofu constraints
+
+Behaviour that shapes this repository's structure. Each of these plans
+cleanly and fails somewhere else, so none of them are discoverable from a
+green plan.
+
+- **`-backend-config` silently ignores a file named `*.auto.tfvars`** — no
+  error, an empty bucket instead. Backend facts live in `state.tfbackend`,
+  and because a backend block can read neither variables nor locals, every
+  other consumer parses that same file with `file()` + `regex()`.
+- **`tofu import` evaluates the whole configuration with nothing
+  deferred.** An import cannot run while any provider configuration
+  depends on resources that do not exist yet, which is why the bootstrap
+  applies the Grafana checks before adopting the console-made trust.
+- **`for_each` keys must be knowable without applying anything.** Key on
+  inputs and put computed attributes in the map values; a map keyed on
+  another resource's computed attribute plans fine and makes every import
+  in the root impossible.
+- **A precondition orders nothing by itself.** On a first apply a data
+  source behind an unapplied resource is deferred, so the guard's
+  precondition evaluates mid-apply — every resource a guard protects must
+  `depends_on` it, or the guard races them instead of gating them.
+- **A value passed with `-var` by one workflow is absent from every other
+  plan** and reads as drift forever after. Derive it in configuration
+  instead: the page footer's version is read from the module pin in
+  `page.tf`.
+
 ## Where a new validation belongs
 
 - Single-variable shape → `variable` `validation` block.
@@ -113,6 +151,10 @@ that are not derivable from the code.
 - Repo-wide text rule → `scripts/lint.sh`.
 - Renderer decision → pytest over a plain function.
 - A value mirrored across layers → `scripts/check-cross-layer.py`.
+- What the provider transmits → `scripts/check-sm-payloads.py`, which
+  applies against a mock API and asserts the payload.
+- What only the running system knows → a bootstrap verification step,
+  asserting against the live API and the published metrics.
 
 ## Project agreements
 
@@ -137,6 +179,27 @@ that are not derivable from the code.
   `configuration_aliases`; a module that configures its own providers breaks
   `for_each` and makes clean destroys impossible.
 - **No identity in the public repo**, enforced by the lint sweep.
+- **Derive identity, declare intent.** Facts the system knows about itself
+  are read, never configured: the repository as the OIDC token's `sub`
+  claim spells it, the page version from the module pin, the plan role's
+  ARN from the apply role's. Facts that state what the operator meant stay
+  written down — the domain, the zone, which account runs a check, what
+  budget it may spend. A derived identity cannot disagree with itself; a
+  derived intention is a guess that happens to be right today.
+- **The instance is generated, not copied.** `bin/sync.sh` rebuilds every
+  template-owned file from the pinned release, and `org_<key>.tf` and
+  `page.tf` come from the orgs map in `instance.auto.tfvars`. The three
+  data files are the only thing an operator edits; hand edits anywhere
+  else do not survive the next sync, which CI runs before every plan and
+  apply. `GITHUB_TOKEN` may not write `.github/workflows`, so a release
+  that changes them fails that push loudly and is finished by hand — the
+  one case where a sync is not automatic.
+- **Bootstrap is one dispatch, gated in the middle.** Step zero is
+  machine-verified: the SMTP dialogue is read back from the Synthetic
+  Monitoring API and every SMTP check must report `probe_success` before
+  anything downstream is built. Its committed marker is what switches
+  routine CI on, so pushes during a bootstrap stay inert instead of racing
+  it.
 - **Check configuration convention:** the type is the protocol, spelled out;
   `host` is a bare hostname; host, port, and path are separate facts.
   Unrepresentable invalid states beat validated ones — a scheme inside the
@@ -147,9 +210,17 @@ that are not derivable from the code.
 Named so they are known gaps rather than surprises.
 
 - OpenTofu cannot prove a Grafana check definition is acceptable until
-  apply, and cannot prove a probe reaches port 25 at all. The manual step
-  zero (apply the SMTP checks alone, watch `probe_success`) is the gate, and
-  nothing downstream is built until it passes.
+  apply, and cannot prove a probe reaches port 25 at all. Step zero
+  (apply the SMTP checks alone, then verify) is the gate, and nothing
+  downstream is built until it passes.
+- What the Synthetic Monitoring backend stores is not necessarily what the
+  provider sent it: `scripts/check-sm-payloads.py` asserts the
+  transmission, the bootstrap reads the stored dialogue back, and only a
+  live `probe_success` proves the conversation runs in order — a scrambled
+  dialogue times out rather than reporting a failure that names itself.
+- Probe locations are a live fleet, not a constant. A location that
+  Grafana retires fails the plan by name; the module's default is only a
+  starting point.
 - The execution-budget arithmetic models Grafana's accounting rather than
   contracting with it; the default budget carries headroom for exactly this
   reason.

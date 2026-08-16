@@ -8,13 +8,25 @@ repository for your private instance.
 ## 1. Grafana Cloud
 
 1. Create a stack (Synthetic Monitoring is part of every stack).
-2. Create an access policy with scopes `accesspolicies:read`,
-   `accesspolicies:write`, `accesspolicies:delete`, `stacks:read`, and a
-   token for it — **with an expiry**. This is the provisioning credential;
-   it is the only Grafana secret that ever leaves Grafana, and it lives
-   solely in the `GRAFANA_CLOUD_TOKENS` secret, keyed by org. Repeat per
-   organisation when several accounts feed one page: each org keeps its own
-   account, billing, and execution budget.
+2. Create a Cloud access policy from the **organisation's** Access
+   Policies page, with the organisation as its realm — a policy scoped to
+   a single stack, or an API key made inside the Grafana instance, cannot
+   read the stack through the org-level API and every apply stops at
+   `403 Forbidden`. Give it scopes `accesspolicies:read`,
+   `accesspolicies:write`, `accesspolicies:delete`, and `stacks:read`
+   (`stacks:delete` is not needed and nothing here should ever hold it),
+   then create a token for it — **with an expiry**. This is the
+   provisioning credential; it is the only Grafana secret that ever leaves
+   Grafana, and it lives solely in the `GRAFANA_CLOUD_TOKENS` secret,
+   keyed by org. Repeat per organisation when several accounts feed one
+   page: each org keeps its own account, billing, and execution budget.
+
+   Verify before going further — `200` means the token can do its job:
+
+   ```sh
+   curl -s -o /dev/null -w '%{http_code}\n' \
+     -H "Authorization: Bearer <token>" https://grafana.com/api/instances
+   ```
 
 ## 2. The instance
 
@@ -128,7 +140,7 @@ dispatch builds everything, with step zero as a gate in the middle:
    with nothing downstream built; the probe's own log in the Synthetic
    Monitoring UI shows how far the conversation got;
 5. it adopts the hand-made trust, importing the console-created provider
-   and role — only possible now, because an import evaluates the whole
+   and role — only possible at this point, because an import evaluates the whole
    configuration and the Synthetic Monitoring providers are configured
    from what step 3 created;
 6. it applies everything else. The apply blocks on ACM certificate
