@@ -57,6 +57,7 @@ resource "aws_lambda_function" "renderer" {
         PROM_PARAM  = aws_ssm_parameter.prometheus.name
       },
       var.page_version == null ? {} : { PAGE_VERSION = var.page_version },
+      var.page_source == null ? {} : { PAGE_SOURCE = var.page_source },
     )
   }
 

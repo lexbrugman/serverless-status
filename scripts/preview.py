@@ -28,6 +28,10 @@ import render  # noqa: E402
 # scheme must come from the configured site.links.
 SVG_NAMESPACE = "http://www.w3.org/2000/svg"
 
+# What the preview renders as the page's origin; instances derive theirs
+# from their module pin.
+SOURCE_REPOSITORY = "lexbrugman/serverless-status"
+
 VOID_ELEMENTS = {
     "area",
     "base",
@@ -119,8 +123,13 @@ def validate_badge(document: str) -> list[str]:
 
 
 def render_fixture(name: str, now: datetime, version: str | None) -> dict[str, str]:
-    state = fixtures.build_state(name, now, version)
+    state = fixtures.build_state(name, now, version, repository=SOURCE_REPOSITORY)
     allowed = {link["url"] for link in state["site"].get("links") or []}
+    # The footer's own link is the one external reference the page may
+    # carry: an anchor to what built it, never a resource it loads.
+    allowed.add(f"https://github.com/{SOURCE_REPOSITORY}")
+    if version:
+        allowed.add(f"https://github.com/{SOURCE_REPOSITORY}/releases/tag/{version}")
     page = render.render_page(state)
     status = render.render_status(state)
     badge_svg = badge.render_badge(state)

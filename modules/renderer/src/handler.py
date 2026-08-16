@@ -153,6 +153,7 @@ def render_handler(event, context):
         outages=outage_records,
         previous=previous,
         version=os.environ.get("PAGE_VERSION"),
+        repository=os.environ.get("PAGE_SOURCE"),
         degraded=degraded,
     )
 

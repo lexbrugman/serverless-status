@@ -133,6 +133,7 @@ def assemble(
     outages: dict[str, list] | None = None,
     previous: dict | None = None,
     version: str | None = None,
+    repository: str | None = None,
     degraded: bool = False,
 ) -> dict:
     """Build the state dict the renderers consume.
@@ -226,6 +227,7 @@ def assemble(
         "degraded": degraded,
         "overall": overall_state([c["state"] for c in checks]),
         "version": version,
+        "repository": repository,
         "groups": groups,
         "checks": checks,
         "outages": incident_log,

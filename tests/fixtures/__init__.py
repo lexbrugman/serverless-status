@@ -224,7 +224,9 @@ def load(name: str, now: datetime) -> dict:
     }
 
 
-def build_state(name: str, now: datetime, version: str | None = None) -> dict:
+def build_state(
+    name: str, now: datetime, version: str | None = None, repository: str | None = None
+) -> dict:
     """Fixture inputs through the real parse + assembly, exactly as the
     handler wires them. Callers must have modules/renderer/src on sys.path.
     """
@@ -249,5 +251,6 @@ def build_state(name: str, now: datetime, version: str | None = None) -> dict:
         outages=fixture["outages"],
         previous=fixture["previous"],
         version=version,
+        repository=repository,
         degraded=fixture["degraded"],
     )

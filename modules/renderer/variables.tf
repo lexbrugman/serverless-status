@@ -107,3 +107,9 @@ variable "page_version" {
   type        = string
   default     = null
 }
+
+variable "page_source" {
+  description = "Repository the page is built from, as owner/name — the footer links the version to its release there. Null renders the version as plain text."
+  type        = string
+  default     = null
+}

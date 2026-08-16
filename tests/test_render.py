@@ -43,6 +43,32 @@ class TestRenderPage:
         assert 'data-rendered-at="2026-08-14T12:00:00Z"' in page
         assert '<meta http-equiv="refresh" content="60">' in page
 
+    def test_the_footer_links_the_version_to_its_release(self):
+        page = render.render_page(
+            fixtures.build_state(
+                "all-green", NOW, version="2026.814.0", repository="example/serverless-status"
+            )
+        )
+        assert (
+            '<a href="https://github.com/example/serverless-status/releases/tag/2026.814.0">'
+            "serverless-status v2026.814.0</a>"
+        ) in page
+
+    def test_an_unpinned_page_links_to_the_repository_itself(self):
+        """A root sourcing its modules from local paths names no release."""
+        page = render.render_page(
+            fixtures.build_state(
+                "all-green", NOW, version="local", repository="example/serverless-status"
+            )
+        )
+        assert '<a href="https://github.com/example/serverless-status">' in page
+        assert "releases/tag" not in page
+
+    def test_without_a_repository_the_version_is_plain_text(self):
+        page = render.render_page(fixtures.build_state("all-green", NOW, version="2026.814.0"))
+        assert "serverless-status v2026.814.0" in page
+        assert "github.com" not in page
+
     def test_every_row_names_its_protocol(self):
         page = render.render_page(fixtures.build_state("all-green", NOW))
         assert '<span class="kind">https</span>' in page

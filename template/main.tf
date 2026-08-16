@@ -20,6 +20,10 @@ locals {
   # on the renderer's environment on every scheduled run. A root whose
   # module sources point at local paths has no release to name.
   page_version = try(regex("[?]ref=([^\"]*)\"", file("${path.root}/page.tf"))[0], "local")
+
+  # The footer links back to what built the page, taken from the same pin:
+  # a fork links to the fork, and nothing repeats the repository by hand.
+  page_source = try(regex("\"github.com/([^/]*/[^/]*)//modules/", file("${path.root}/page.tf"))[0], null)
 }
 
 module "routing" {

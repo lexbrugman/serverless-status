@@ -204,7 +204,19 @@ def render_page(state: dict) -> str:
         f'<a href="{_esc(link["url"])}">{_esc(link["label"])}</a>'
         for link in site.get("links") or []
     ]
-    version = f"v{_esc(state['version'])}" if state.get("version") else ""
+    # What built this page, linked to the exact release when there is one.
+    # Both facts come from the module pin, so a fork points at itself.
+    version = ""
+    if state.get("version"):
+        label = f"serverless-status v{_esc(state['version'])}"
+        repository = state.get("repository")
+        if repository:
+            url = f"https://github.com/{_esc(repository)}"
+            if state["version"] != "local":
+                url = f"{url}/releases/tag/{_esc(state['version'])}"
+            version = f'<a href="{url}">{label}</a>'
+        else:
+            version = label
     footer_parts = [
         f"Last updated {updated}",
         *links,

@@ -20,6 +20,7 @@ module "renderer" {
   prometheus_sources = [module.checks_example.prometheus]
 
   page_version = local.page_version
+  page_source  = local.page_source
 }
 
 output "distribution_domain" {
