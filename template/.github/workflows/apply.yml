@@ -27,11 +27,6 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7.0.1
 
-      - name: Sync the instance
-        env:
-          PUSH_BRANCH: ${{ github.ref_name }}
-        run: bin/ci-sync.sh
-
       - name: Resolve the instance region
         run: bin/ci-resolve-region.sh
 
@@ -40,6 +35,11 @@ jobs:
 
       - name: Set up pinned tofu
         uses: ./.github/actions/setup-tofu
+
+      - name: Sync the instance
+        env:
+          PUSH_BRANCH: ${{ github.ref_name }}
+        run: bin/ci-sync.sh
 
       - name: Assume the apply role
         uses: aws-actions/configure-aws-credentials@v6.2.3

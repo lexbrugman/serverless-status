@@ -31,11 +31,6 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
 
-      - name: Sync the instance
-        env:
-          PUSH_BRANCH: ${{ github.head_ref }}
-        run: bin/ci-sync.sh
-
       - name: Resolve the instance region
         run: bin/ci-resolve-region.sh
 
@@ -44,6 +39,11 @@ jobs:
 
       - name: Set up pinned tofu
         uses: ./.github/actions/setup-tofu
+
+      - name: Sync the instance
+        env:
+          PUSH_BRANCH: ${{ github.head_ref }}
+        run: bin/ci-sync.sh
 
       - name: Assume the plan role
         uses: aws-actions/configure-aws-credentials@v6.2.3

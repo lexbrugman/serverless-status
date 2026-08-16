@@ -71,8 +71,13 @@ if [[ -z "$tofu_bin" ]]; then
   tofu_bin="$ROOT/bin/tofu.sh"
 fi
 
-reader="$work/reader"
+# Inside the repository on purpose: the container wrapper resolves the
+# root from the working directory and mounts only that, so a scratch root
+# under /tmp would be invisible to it.
+reader="$ROOT/.sync-reader"
+rm -rf "$reader"
 mkdir -p "$reader"
+trap 'rm -rf "$work" "$reader"' EXIT
 cp config.yaml "$reader/config.yaml"
 cat >"$reader/main.tf" <<'READER'
 output "org_keys" {
