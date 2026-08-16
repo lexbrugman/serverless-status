@@ -46,12 +46,6 @@ variable "state_passphrase" {
   sensitive   = true
 }
 
-variable "page_version" {
-  description = "Version rendered in the page footer — CI passes the pinned module ref."
-  type        = string
-  default     = null
-}
-
 variable "checks" {
   description = "Every monitored endpoint (see checks.auto.tfvars). Each entry names the org whose account runs it; the remaining shape and validation live in the checks module."
   type        = any

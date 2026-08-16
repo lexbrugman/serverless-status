@@ -19,7 +19,7 @@ module "renderer" {
   check_manifests    = [module.checks_example.check_manifest]
   prometheus_sources = [module.checks_example.prometheus]
 
-  page_version = var.page_version
+  page_version = local.page_version
 }
 
 output "distribution_domain" {
