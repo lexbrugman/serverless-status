@@ -252,6 +252,13 @@ Named so they are known gaps rather than surprises.
 - Comments state constraints the code cannot express, never the transition
   that produced them: a future reader sees only B, in the context of B.
 - Docs state rules, not membership; versions never appear in prose.
+- **A failure that was just debugged is not documentation.** Write the
+  requirement — the scope, the realm, the spelling, the order — never the
+  symptom seen when it was missing, and never single out one item of a
+  list because it is the one that broke. Documentation written straight
+  out of a debugging session is where this creeps in, and it reads as
+  helpfulness: the next reader has a different failure and needs the rule,
+  not the last one's stack trace.
 - **The README is part of the product, and ships in the same commit as what
   it describes.** A change to what the page renders redraws
   `docs/screenshot.png` with `scripts/screenshot.sh` — one fixture, one

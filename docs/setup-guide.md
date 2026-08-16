@@ -8,17 +8,16 @@ repository for your private instance.
 ## 1. Grafana Cloud
 
 1. Create a stack (Synthetic Monitoring is part of every stack).
-2. Create a Cloud access policy from the **organisation's** Access
-   Policies page, with the organisation as its realm — a policy scoped to
-   a single stack, or an API key made inside the Grafana instance, cannot
-   read the stack through the org-level API and every apply stops at
-   `403 Forbidden`. Give it exactly these scopes:
-   `accesspolicies:read`, `accesspolicies:write`, `accesspolicies:delete`,
-   `stacks:read`, and `stack-service-accounts:write` — the last one lets
-   the apply create the service account that provisions alerting inside
-   the stack, and a missing scope surfaces as a bare `403 Forbidden`
-   naming the resource that needed it. Then create a token for it —
-   **with an expiry**. This is the
+2. Create a Cloud access policy on the **organisation's** Access Policies
+   page, with the organisation as its realm: everything here reaches the
+   stack through the organisation API. Give it exactly these scopes:
+
+   ```
+   accesspolicies:read  accesspolicies:write  accesspolicies:delete
+   stacks:read  stack-service-accounts:write
+   ```
+
+   Then create a token for it — **with an expiry**. This is the
    provisioning credential; it is the only Grafana secret that ever leaves
    Grafana, and it lives solely in the `GRAFANA_CLOUD_TOKENS` secret,
    keyed by org. Repeat per organisation when several accounts feed one
@@ -111,11 +110,10 @@ policy:
    ids are numeric: the org id from
    `https://api.github.com/orgs/<owner>`, and the repository id — the API
    keeps private repositories behind a token — from the repo page's HTML
-   source, in the `octolytics-dimension-repository_id` meta tag. Get this
-   one wrong and the first assume is refused; it is the only place the
-   spelling is yours to state, because from the adoption on the workflows
-   read it out of the token itself. The bootstrap replaces this policy
-   with the managed one, narrowed to the production environment.
+   source, in the `octolytics-dimension-repository_id` meta tag. This is
+   the only place the spelling is stated by hand: from the adoption on,
+   the workflows read it from the token. The bootstrap replaces this
+   policy with the managed one, narrowed to the production environment.
 
 Then, in the instance repository, add the repository variable
 `APPLY_ROLE_ARN` (the new role's ARN — the only role ARN you ever state;
