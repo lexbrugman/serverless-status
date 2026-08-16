@@ -1,5 +1,5 @@
 # Do not edit — wiring a template update overwrites. Your values are read
-# from the root's state.tfbackend.
+# from the instance's state.tfbackend.
 #
 # A separate root so the main stack can never delete its own state store.
 # Its state is the local terraform.tfstate next to this file, committed to
@@ -19,7 +19,7 @@ terraform {
 }
 
 locals {
-  state_backend = file("${path.module}/../state.tfbackend")
+  state_backend = file("${path.module}/../../state.tfbackend")
   state_bucket  = regex("bucket\\s*=\\s*\"([^\"]*)\"", local.state_backend)[0]
   region        = regex("region\\s*=\\s*\"([^\"]*)\"", local.state_backend)[0]
 }

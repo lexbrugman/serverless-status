@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Rebuild everything the template owns from the pinned release, preserving
 # what is yours: config.yaml, state.tfbackend, and the state and lock files.
-# Logic files are replaced wholesale; grafana_org_<key>.tf and page.tf are
-# generated from the release's stencil, one per key in config.yaml's
-# grafana_orgs — hand edits to them do not survive a sync.
+# Everything under tofu/, bin/ and .github/ is replaced wholesale;
+# tofu/grafana_org_<key>.tf and tofu/page.tf are generated from the
+# release's stencil, one per key in config.yaml's grafana_orgs — hand edits
+# to them do not survive a sync.
 #
-# Usage: sync.sh [REF]   (default: the ref pinned in page.tf)
+# Usage: sync.sh [REF]   (default: the ref pinned in tofu/page.tf)
 set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
@@ -37,10 +38,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$ref" ]]; then
-  ref="$(sed -n 's/.*?ref=\([^"]*\)".*/\1/p' page.tf | head -n 1)"
+  ref="$(sed -n 's/.*?ref=\([^"]*\)".*/\1/p' tofu/page.tf | head -n 1)"
 fi
 if [[ -z "$ref" ]]; then
-  echo "ERROR: no ref given and none found in page.tf." >&2
+  echo "ERROR: no ref given and none found in tofu/page.tf." >&2
   exit 1
 fi
 
@@ -50,9 +51,9 @@ trap 'rm -rf "$work"' EXIT
 if [[ -z "$source_dir" ]]; then
   # Upstream is wherever the modules are pinned: a fork that syncs from the
   # repository it does not use is the one split worth preventing.
-  upstream="$(sed -n 's|.*"github.com/\([^/]*/[^/]*\)//modules/.*|\1|p' page.tf | head -n 1)"
+  upstream="$(sed -n 's|.*"github.com/\([^/]*/[^/]*\)//modules/.*|\1|p' tofu/page.tf | head -n 1)"
   if [[ -z "$upstream" ]]; then
-    echo "ERROR: no module source in page.tf — it names the repository to sync from." >&2
+    echo "ERROR: no module source in tofu/page.tf — it names the repository to sync from." >&2
     exit 1
   fi
   git clone --quiet --depth 1 --branch "$ref" "https://github.com/${upstream}" "$work/upstream"
@@ -110,12 +111,12 @@ for org in "${orgs[@]}"; do
     echo "# Generated from grafana_org_example.tf by bin/sync.sh for the"
     echo "# \"${org}\" account — hand edits do not survive a sync; changes"
     echo "# belong in config.yaml or upstream."
-    sed "s/example/${org}/g" "$render/grafana_org_example.tf" | sed '0,/^$/d'
+    sed "s/example/${org}/g" "$render/tofu/grafana_org_example.tf" | sed '0,/^$/d'
   } >"$work/grafana_org_${org}.tf"
 done
-rm "$render/grafana_org_example.tf"
+rm "$render/tofu/grafana_org_example.tf"
 for org in "${orgs[@]}"; do
-  mv "$work/grafana_org_${org}.tf" "$render/grafana_org_${org}.tf"
+  mv "$work/grafana_org_${org}.tf" "$render/tofu/grafana_org_${org}.tf"
 done
 
 manifests=""
@@ -124,16 +125,17 @@ for org in "${orgs[@]}"; do
   manifests+="module.checks_${org}.check_manifest, "
   sources+="module.checks_${org}.prometheus, "
 done
-sed -i "s|check_manifests    = \[.*\]|check_manifests    = [${manifests%, }]|" "$render/page.tf"
-sed -i "s|prometheus_sources = \[.*\]|prometheus_sources = [${sources%, }]|" "$render/page.tf"
+sed -i "s|check_manifests    = \[.*\]|check_manifests    = [${manifests%, }]|" "$render/tofu/page.tf"
+sed -i "s|prometheus_sources = \[.*\]|prometheus_sources = [${sources%, }]|" "$render/tofu/page.tf"
 
 # What is yours survives.
-for file in config.yaml state.tfbackend .terraform.lock.hcl; do
+for file in config.yaml state.tfbackend; do
   if [[ -f "$file" ]]; then
     cp "$file" "$render/$file"
   fi
 done
-for file in bootstrap/terraform.tfstate bootstrap/terraform.tfstate.backup bootstrap/.terraform.lock.hcl; do
+for file in tofu/.terraform.lock.hcl tofu/bootstrap/terraform.tfstate \
+  tofu/bootstrap/terraform.tfstate.backup tofu/bootstrap/.terraform.lock.hcl; do
   if [[ -f "$file" ]]; then
     cp "$file" "$render/$file"
   fi
@@ -142,10 +144,10 @@ done
 # Template-owned classes are removed before the render lands, so files the
 # release dropped disappear instead of lingering; anything you added
 # outside these classes is untouched.
-git ls-files -z -- 'wiring' 'bin' '.github' 'bootstrap' '*.tf' \
-  'Containerfile' 'README.md' 'renovate.json' '.gitignore' 2>/dev/null |
+git ls-files -z -- 'tofu' 'bin' '.github' \
+  'Containerfile' 'README.md' '.gitignore' 2>/dev/null |
   xargs -0 -r rm -f
-find wiring bin .github bootstrap -type d -empty -delete 2>/dev/null || true
+find tofu bin .github -type d -empty -delete 2>/dev/null || true
 
 cp -R "$render/." .
 

@@ -62,12 +62,13 @@ own two files:
   region, each stated once. It is separate because a backend is configured
   before any configuration is read.
 
-Everything else is generated. `grafana_org_<key>.tf` and `page.tf` come
-from `config.yaml` — one file per Grafana account, plus that account's
-entries in `page.tf`'s lists, carrying the module pins Renovate manages —
-and `wiring/`, `bin/`, the workflows, and the root `.tf` shims are logic.
-`bin/sync.sh` rewrites that whole class, and CI runs it before every plan
-and apply, so hand edits outside your two files do not survive.
+Everything else is generated and lives out of your way: the OpenTofu
+roots under `tofu/`, the scripts under `bin/`, the workflows under
+`.github/`. `tofu/grafana_org_<key>.tf` and `tofu/page.tf` come from
+`config.yaml` — one file per Grafana account, plus that account's entries
+in that file's lists, carrying the module pins Renovate manages.
+`bin/sync.sh` rewrites all of it, and CI runs it before every plan and
+apply, so hand edits outside your two files do not survive.
 
 Create the state passphrase: a secret you invent once. It encrypts the
 state client-side, and every future plan and apply needs this exact value.
@@ -177,10 +178,10 @@ the template owns from that release, committing "Sync instance to <ref>"
 onto the same branch. The plan comment then reviews the
 synced tree — the tree the merge applies.
 
-The rebuild is `bin/sync.sh`. Logic files are replaced wholesale (which
-also removes files the release dropped); `grafana_org_<key>.tf` and
-`page.tf` regenerate from the release's stencil, one per account in
-`config.yaml`. Hand edits to generated files do not survive a sync —
+The rebuild is `bin/sync.sh`. Everything under `tofu/`, `bin/` and
+`.github/` is replaced wholesale (which also removes files the release
+dropped); `tofu/grafana_org_<key>.tf` and `tofu/page.tf` regenerate from
+the release's stencil, one per account in `config.yaml`. Hand edits to generated files do not survive a sync —
 changes belong in `config.yaml` or upstream. Your two files, the state and
 lock files, and anything you added outside the template-owned classes are
 never touched.
@@ -209,8 +210,8 @@ export TF_VAR_state_passphrase=<the stored passphrase>
 export TF_VAR_github_repository=<owner>/<repo>
 export AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=...   # or AWS_PROFILE
 
-tofu init -backend-config=state.tfbackend
-tofu plan
+tofu -chdir=tofu init -backend-config=../state.tfbackend
+tofu -chdir=tofu plan
 ```
 
 The same secrets live in GitHub, where CI reads them; a local copy is a

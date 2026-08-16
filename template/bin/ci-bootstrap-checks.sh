@@ -5,10 +5,10 @@ set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
-tofu init -input=false -backend-config=state.tfbackend
+tofu -chdir=tofu init -input=false -backend-config=../state.tfbackend
 targets=()
-for file in grafana_org_*.tf; do
-  org="${file#grafana_org_}"
+for file in tofu/grafana_org_*.tf; do
+  org="${file#tofu/grafana_org_}"
   targets+=("-target=module.checks_${org%.tf}")
 done
-tofu apply -input=false -auto-approve "${targets[@]}"
+tofu -chdir=tofu apply -input=false -auto-approve "${targets[@]}"

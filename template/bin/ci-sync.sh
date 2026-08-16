@@ -19,7 +19,7 @@ fi
 git config user.name 'github-actions[bot]'
 git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 git add -A
-ref="$(sed -n 's/.*?ref=\([^"]*\)".*/\1/p' page.tf | head -n 1)"
+ref="$(sed -n 's/.*?ref=\([^"]*\)".*/\1/p' tofu/page.tf | head -n 1)"
 git commit -m "Sync instance to ${ref}"
 # GITHUB_TOKEN may not write .github/workflows; a release that changes
 # those needs bin/sync.sh run locally (git, sed, and awk only) on this

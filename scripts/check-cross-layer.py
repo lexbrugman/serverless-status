@@ -29,7 +29,7 @@ MIRRORS = [
 # The wiring names the roles it creates; a shell script cannot ask it, so
 # every restatement is pinned here. A rename that lands in one place turns
 # an assume or an import into a runtime failure nothing else catches.
-ROLE_SOURCE = "template/wiring/ci/main.tf"
+ROLE_SOURCE = "template/tofu/wiring/ci/main.tf"
 ROLE_MIRRORS = [
     (
         "apply",

@@ -7,9 +7,9 @@ set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
-tofu init -input=false -backend-config=state.tfbackend
+tofu -chdir=tofu init -input=false -backend-config=../state.tfbackend
 account_id="$(aws sts get-caller-identity --query Account --output text)"
-state="$(tofu state list 2>/dev/null || true)"
+state="$(tofu -chdir=tofu state list 2>/dev/null || true)"
 # An import evaluates the whole configuration, so it can only run once the
 # checks apply has put the Synthetic Monitoring installations in state —
 # the sm providers are configured from their outputs.
@@ -18,9 +18,9 @@ if ! grep -q 'grafana_synthetic_monitoring_installation' <<<"$state"; then
   exit 1
 fi
 if ! grep -q 'module.ci.aws_iam_openid_connect_provider.github' <<<"$state"; then
-  tofu import -input=false 'module.ci.aws_iam_openid_connect_provider.github' \
+  tofu -chdir=tofu import -input=false 'module.ci.aws_iam_openid_connect_provider.github' \
     "arn:aws:iam::${account_id}:oidc-provider/token.actions.githubusercontent.com"
 fi
 if ! grep -q 'module.ci.aws_iam_role.apply$' <<<"$state"; then
-  tofu import -input=false 'module.ci.aws_iam_role.apply' serverless-status-apply
+  tofu -chdir=tofu import -input=false 'module.ci.aws_iam_role.apply' serverless-status-apply
 fi

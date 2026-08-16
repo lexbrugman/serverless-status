@@ -6,7 +6,7 @@
 #
 #   alias tofu="$PWD/bin/tofu.sh"
 #
-# The version derives from the module pin in page.tf — repository and ref
+# The version derives from the module pin in tofu/page.tf — repository and ref
 # both — so a Renovate bump moves tofu in lockstep, rebuilds the image
 # exactly once, and a fork installs its own tooling rather than mine.
 # TF_VAR_* and AWS_* environment variables pass through, and ~/.aws mounts
@@ -15,8 +15,8 @@ set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
 
-module_ref="$(sed -n 's/.*?ref=\([^"]*\)".*/\1/p' "$ROOT/page.tf" | head -n 1)"
-module_repo="$(sed -n 's|.*"github.com/\([^/]*/[^/]*\)//modules/.*|\1|p' "$ROOT/page.tf" | head -n 1)"
+module_ref="$(sed -n 's/.*?ref=\([^"]*\)".*/\1/p' "$ROOT/tofu/page.tf" | head -n 1)"
+module_repo="$(sed -n 's|.*"github.com/\([^/]*/[^/]*\)//modules/.*|\1|p' "$ROOT/tofu/page.tf" | head -n 1)"
 if [[ -z "$module_ref" || -z "$module_repo" ]]; then
   echo "ERROR: no module source in page.tf — the tofu version derives from it." >&2
   exit 1

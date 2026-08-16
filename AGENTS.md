@@ -171,7 +171,7 @@ green plan.
 - **Ownership boundary.** Modules create only what they own the entire
   lifecycle of, and read everything that predates them (the Route 53 zone,
   the Grafana stack). The state bucket belongs to the instance's separate
-  `bootstrap/` root, whose state is committed to git — outside the main
+  bootstrap root, whose state is committed to git — outside the main
   root's blast radius. Destroying this stack must never be able to take
   down the zone or its own state store.
 - **`moved` blocks are mandatory on every refactor.** Master is release, so
@@ -188,8 +188,11 @@ green plan.
   budget it may spend. A derived identity cannot disagree with itself; a
   derived intention is a guess that happens to be right today.
 - **The instance is generated, not copied.** `bin/sync.sh` rebuilds every
-  template-owned file from the pinned release, and `grafana_org_<key>.tf`
-  and `page.tf` come from `config.yaml`. That file and `state.tfbackend`
+  generated file from the pinned release, and the per-account roots and
+  the page root come from `config.yaml`. An instance's root holds only
+  what its operator edits — the two data files, plus a README and the
+  container definition; the OpenTofu roots, scripts and workflows live in
+  directories, so what is editable is what is visible. That file and `state.tfbackend`
   are the only things an operator edits; hand edits anywhere else do not
   survive the next sync, which CI runs before every plan and apply.
   Config is YAML and is read with a YAML parser — OpenTofu's own

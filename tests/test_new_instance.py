@@ -21,14 +21,14 @@ class TestNewInstance:
         assert refs == {TAG}, f"every module source pins the release, got {refs}"
         assert (target / "config.yaml").exists()
         assert (target / ".github" / "workflows" / "ci.yml").exists()
-        assert (target / "bootstrap" / "main.tf").exists()
+        assert (target / "tofu" / "bootstrap" / "main.tf").exists()
 
     def test_accepts_a_clone_of_an_empty_repository(self, repo, tmp_path):
         target = tmp_path / "cloned-empty"
         subprocess.run(["git", "init", "-q", str(target)], check=True)
         result = run([str(repo / "scripts" / "new-instance.sh"), str(target)], cwd=repo)
         assert result.returncode == 0, result.stderr
-        assert (target / "main.tf").exists()
+        assert (target / "tofu" / "main.tf").exists()
 
     def test_refuses_a_non_empty_target(self, repo, tmp_path):
         target = tmp_path / "occupied"

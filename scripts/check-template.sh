@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Validate the template as a root: a temp copy with module sources rewritten
+# Validate the template's roots: a temp copy with module sources rewritten
 # to local paths, which sidesteps the chicken-and-egg of validating a ref
 # that does not exist yet. tflint runs with the repo-wide config.
 set -euo pipefail
@@ -18,12 +18,12 @@ if grep -rn 'ref=master' "$tmp_dir" --include='*.tf'; then
   exit 1
 fi
 
-cd "$tmp_dir"
+cd "$tmp_dir/tofu"
 tofu init -backend=false -input=false >/dev/null
 tofu validate
 tflint --config "$ROOT/.tflint.hcl"
 
-cd "$tmp_dir/bootstrap"
+cd "$tmp_dir/tofu/bootstrap"
 tofu init -backend=false -input=false >/dev/null
 tofu validate
 tflint --config "$ROOT/.tflint.hcl"

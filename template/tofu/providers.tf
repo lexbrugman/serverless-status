@@ -15,7 +15,7 @@ terraform {
   }
 
   # A backend block cannot read variables or locals; bucket and region
-  # arrive at init: tofu init -backend-config=state.tfbackend
+  # arrive at init: tofu init -backend-config=../state.tfbackend
   backend "s3" {
     key          = "serverless-status.tfstate"
     use_lockfile = true
@@ -49,7 +49,7 @@ terraform {
 # The backend block cannot share its configuration, so the same file is
 # parsed for everything else that needs these two facts.
 locals {
-  state_backend = file("${path.root}/state.tfbackend")
+  state_backend = file("${path.root}/../state.tfbackend")
   state_bucket  = regex("bucket\\s*=\\s*\"([^\"]*)\"", local.state_backend)[0]
   region        = regex("region\\s*=\\s*\"([^\"]*)\"", local.state_backend)[0]
 }

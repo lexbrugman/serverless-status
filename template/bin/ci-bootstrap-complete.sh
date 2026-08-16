@@ -30,6 +30,6 @@ fi
   echo "- restrict the \`production\` environment's deployment branches to master —"
   echo "  the apply role's trust accepts only that environment, and the restriction"
   echo "  is what makes it mean master"
-  echo "- verify the page and its certificate at \`$(tofu output -raw distribution_domain)\`"
+  echo "- verify the page and its certificate at \`$(tofu -chdir=tofu output -raw distribution_domain)\`"
   echo "  before pointing DNS at it"
 } >>"$GITHUB_STEP_SUMMARY"

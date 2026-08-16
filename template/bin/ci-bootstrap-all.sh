@@ -6,5 +6,5 @@ set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
-tofu init -input=false -backend-config=state.tfbackend
-tofu apply -input=false -auto-approve
+tofu -chdir=tofu init -input=false -backend-config=../state.tfbackend
+tofu -chdir=tofu apply -input=false -auto-approve

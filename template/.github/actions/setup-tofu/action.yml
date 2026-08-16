@@ -1,7 +1,7 @@
 name: Set up pinned tofu
 description: >-
   Install OpenTofu at the version the pinned release's CI tested. Both the
-  repository and the ref come from the module source in page.tf, so the
+  repository and the ref come from the module source in tofu/page.tf, so the
   installer shares the module code's trust root exactly.
 
 runs:
@@ -11,8 +11,8 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        module_ref="$(sed -n 's/.*?ref=\([^"]*\)".*/\1/p' page.tf | head -n 1)"
-        upstream="$(sed -n 's|.*"github.com/\([^/]*/[^/]*\)//modules/.*|\1|p' page.tf | head -n 1)"
+        module_ref="$(sed -n 's/.*?ref=\([^"]*\)".*/\1/p' tofu/page.tf | head -n 1)"
+        upstream="$(sed -n 's|.*"github.com/\([^/]*/[^/]*\)//modules/.*|\1|p' tofu/page.tf | head -n 1)"
         base="https://raw.githubusercontent.com/${upstream}/${module_ref}"
         curl -fsSL "$base/versions.env" -o "$RUNNER_TEMP/versions.env"
         curl -fsSL "$base/bin/install-tofu.sh" -o "$RUNNER_TEMP/install-tofu.sh"

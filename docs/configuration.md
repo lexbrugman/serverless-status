@@ -81,8 +81,8 @@ grafana_orgs:
 
 One entry per Grafana Cloud account, keyed by an identifier you choose.
 Each account keeps its own billing and its own execution budget, and CI
-generates a `grafana_org_<key>.tf` and its entries in `page.tf` from this
-map. The budget is stated rather than read because no API publishes an
+generates a `tofu/grafana_org_<key>.tf` and its entries in `tofu/page.tf`
+from this map. The budget is stated rather than read because no API publishes an
 account's execution allowance.
 
 ## Alerting
