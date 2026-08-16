@@ -35,6 +35,10 @@ def repo(tmp_path_factory):
     ).stdout.splitlines()
     for path in listed:
         source = ROOT / path
+        if not source.is_file():
+            # An editor's scratch file can be listed and gone a moment
+            # later; the clone is of the tree, not of what was open.
+            continue
         target = clone / path
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(source, target)

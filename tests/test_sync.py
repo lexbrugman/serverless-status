@@ -1,6 +1,7 @@
 """bin/sync.sh rebuilds an instance from the template: logic replaced,
 structure regenerated over the org set, data and state preserved."""
 
+import shutil
 import subprocess
 
 import pytest
@@ -86,6 +87,29 @@ class TestSync:
         assert (instance / "RUNBOOK.md").read_text() == "mine\n"
         assert '"fake"' in (instance / "tofu" / "bootstrap" / "terraform.tfstate").read_text()
 
+    def test_a_release_that_moves_a_file_leaves_no_orphan(self, repo, instance, tmp_path):
+        """The sync an instance runs comes from the release it is leaving, so
+        the record of what was generated — not this release's own idea of
+        what it owns — decides what goes."""
+        first = run(
+            [str(instance / "bin" / "sync.sh"), "--source", str(repo / "template"), SYNC_REF],
+            cwd=instance,
+        )
+        assert first.returncode == 0, first.stderr
+        assert (instance / ".sync-manifest").exists()
+
+        # A later release that renames a script.
+        moved = tmp_path / "moved-template"
+        shutil.copytree(repo / "template", moved)
+        (moved / "bin" / "ci-plan.sh").rename(moved / "bin" / "ci-planning.sh")
+
+        second = run(
+            [str(instance / "bin" / "sync.sh"), "--source", str(moved), SYNC_REF], cwd=instance
+        )
+        assert second.returncode == 0, second.stderr
+        assert (instance / "bin" / "ci-planning.sh").exists()
+        assert not (instance / "bin" / "ci-plan.sh").exists(), "the old path must not linger"
+
     def test_fails_loudly_without_a_ref(self, repo, instance):
         (instance / "tofu" / "page.tf").write_text("# no module sources\n")
         result = run(
@@ -93,7 +117,7 @@ class TestSync:
             cwd=instance,
         )
         assert result.returncode == 1
-        assert "no ref given and none found" in result.stderr
+        assert "no ref given and no module pin" in result.stderr
 
     def test_fails_loudly_without_accounts(self, repo, instance):
         config = instance / "config.yaml"

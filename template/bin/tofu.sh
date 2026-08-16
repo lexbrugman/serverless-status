@@ -15,10 +15,16 @@ set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
 
-module_ref="$(sed -n 's/.*?ref=\([^"]*\)".*/\1/p' "$ROOT/tofu/page.tf" | head -n 1)"
-module_repo="$(sed -n 's|.*"github.com/\([^/]*/[^/]*\)//modules/.*|\1|p' "$ROOT/tofu/page.tf" | head -n 1)"
+# Wherever the release in force keeps the pin: this wrapper is the one
+# piece of tooling that has to work while a sync is moving things.
+pin="$ROOT/tofu/page.tf"
+if [[ ! -f "$pin" ]]; then
+  pin="$ROOT/page.tf"
+fi
+module_ref="$(sed -n 's/.*?ref=\([^"]*\)".*/\1/p' "$pin" | head -n 1)"
+module_repo="$(sed -n 's|.*"github.com/\([^/]*/[^/]*\)//modules/.*|\1|p' "$pin" | head -n 1)"
 if [[ -z "$module_ref" || -z "$module_repo" ]]; then
-  echo "ERROR: no module source in page.tf — the tofu version derives from it." >&2
+  echo "ERROR: no module source found — the tofu version derives from the pin." >&2
   exit 1
 fi
 

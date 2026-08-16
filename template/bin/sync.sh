@@ -37,13 +37,18 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "$ref" ]]; then
-  ref="$(sed -n 's/.*?ref=\([^"]*\)".*/\1/p' tofu/page.tf | head -n 1)"
+# Wherever a past release kept the pin: an instance is synced by the
+# release it is leaving, so this has to read a layout it may predate.
+pin="$(git ls-files -- 'tofu/page.tf' 'page.tf' | head -n 1)"
+if [[ -z "$ref" && -n "$pin" ]]; then
+  ref="$(sed -n 's/.*?ref=\([^"]*\)".*/\1/p' "$pin" | head -n 1)"
 fi
 if [[ -z "$ref" ]]; then
-  echo "ERROR: no ref given and none found in tofu/page.tf." >&2
+  echo "ERROR: no ref given and no module pin found to read one from." >&2
   exit 1
 fi
+
+manifest_file=".sync-manifest"
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
@@ -51,9 +56,9 @@ trap 'rm -rf "$work"' EXIT
 if [[ -z "$source_dir" ]]; then
   # Upstream is wherever the modules are pinned: a fork that syncs from the
   # repository it does not use is the one split worth preventing.
-  upstream="$(sed -n 's|.*"github.com/\([^/]*/[^/]*\)//modules/.*|\1|p' tofu/page.tf | head -n 1)"
+  upstream="$(sed -n 's|.*"github.com/\([^/]*/[^/]*\)//modules/.*|\1|p' "${pin:-/dev/null}" | head -n 1)"
   if [[ -z "$upstream" ]]; then
-    echo "ERROR: no module source in tofu/page.tf — it names the repository to sync from." >&2
+    echo "ERROR: no module source found — the pin names the repository to sync from." >&2
     exit 1
   fi
   git clone --quiet --depth 1 --branch "$ref" "https://github.com/${upstream}" "$work/upstream"
@@ -141,15 +146,22 @@ for file in tofu/.terraform.lock.hcl tofu/bootstrap/terraform.tfstate \
   fi
 done
 
-# Template-owned classes are removed before the render lands, so files the
-# release dropped disappear instead of lingering; anything you added
-# outside these classes is untouched.
-git ls-files -z -- 'tofu' 'bin' '.github' \
-  'Containerfile' 'README.md' '.gitignore' 2>/dev/null |
-  xargs -0 -r rm -f
-find tofu bin .github -type d -empty -delete 2>/dev/null || true
+# What the previous sync generated is recorded, so what it generated is
+# what gets removed — including from a layout this release no longer has.
+# Anything added outside that record is untouched, and the first sync of an
+# instance that predates the record falls back to the classes as they were.
+if [[ -f "$manifest_file" ]]; then
+  tr '\n' '\0' <"$manifest_file" | xargs -0 -r rm -f
+else
+  git ls-files -z -- 'tofu' 'bin' '.github' 'wiring' 'bootstrap' '*.tf' \
+    'Containerfile' 'README.md' 'renovate.json' '.gitignore' 2>/dev/null |
+    xargs -0 -r rm -f
+fi
+find tofu bin .github wiring bootstrap -type d -empty -delete 2>/dev/null || true
 
+(cd "$render" && find . -type f -printf '%P\n' | sort) >"$work/manifest"
 cp -R "$render/." .
+cp "$work/manifest" "$manifest_file"
 
 echo "synced to ${ref} for accounts: ${orgs[*]}"
 echo "Review with git status and git diff, then commit."
