@@ -110,6 +110,20 @@ class TestSync:
         assert (instance / "bin" / "ci-planning.sh").exists()
         assert not (instance / "bin" / "ci-plan.sh").exists(), "the old path must not linger"
 
+    def test_state_survives_a_release_that_moves_the_roots(self, repo, instance, tmp_path):
+        """Stranding a state file is untidy; deleting one destroys the only
+        record of what exists."""
+        moved = tmp_path / "moved-template"
+        shutil.copytree(repo / "template", moved)
+        (moved / "tofu").rename(moved / "stack")
+
+        result = run(
+            [str(instance / "bin" / "sync.sh"), "--source", str(moved), SYNC_REF], cwd=instance
+        )
+        assert result.returncode == 0, result.stderr
+        assert (instance / "stack").is_dir(), "the release's own layout lands"
+        assert '"fake"' in (instance / "tofu" / "bootstrap" / "terraform.tfstate").read_text()
+
     def test_fails_loudly_without_a_ref(self, repo, instance):
         (instance / "tofu" / "page.tf").write_text("# no module sources\n")
         result = run(
