@@ -17,8 +17,9 @@ repository for your private instance.
    stacks:read  stack-service-accounts:write
    ```
 
-   Then create a token for it — **with an expiry**. This is the
-   provisioning credential; it is the only Grafana secret that ever leaves
+   Then create a token for it — **with an expiry**. A scope added to the
+   policy later reaches tokens already issued from it, after a delay of a
+   few minutes. This is the provisioning credential; it is the only Grafana secret that ever leaves
    Grafana, and it lives solely in the `GRAFANA_CLOUD_TOKENS` secret,
    keyed by org. Repeat per organisation when several accounts feed one
    page: each org keeps its own account, billing, and execution budget.
