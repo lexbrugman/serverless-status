@@ -68,7 +68,10 @@ if [[ -z "$source_dir" ]]; then
     echo "ERROR: no module source found — the pin names the repository to sync from." >&2
     exit 1
   fi
-  git clone --quiet --depth 1 --branch "$ref" "https://github.com/${upstream}" "$work/upstream"
+  # A tag checkout is detached by definition; git's advice about it is for
+  # someone who meant to work in the clone, and nobody works in this one.
+  git -c advice.detachedHead=false clone --quiet --depth 1 --branch "$ref" \
+    "https://github.com/${upstream}" "$work/upstream"
   template="$work/upstream/template"
 else
   template="$source_dir"
