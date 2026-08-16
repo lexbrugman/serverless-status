@@ -154,7 +154,8 @@ green plan.
 - What the provider transmits → `scripts/check-sm-payloads.py`, which
   applies against a mock API and asserts the payload.
 - What only the running system knows → a bootstrap verification step,
-  asserting against the live API and the published metrics.
+  asserting against the live API and the published metrics. Assert that
+  monitoring works, never that what it monitors is healthy.
 
 ## Project agreements
 
@@ -196,10 +197,12 @@ green plan.
   one case where a sync is not automatic.
 - **Bootstrap is one dispatch, gated in the middle.** Step zero is
   machine-verified: the SMTP dialogue is read back from the Synthetic
-  Monitoring API and every SMTP check must report `probe_success` before
-  anything downstream is built. Its committed marker is what switches
-  routine CI on, so pushes during a bootstrap stay inert instead of racing
-  it.
+  Monitoring API, and every check must publish a `probe_success` sample
+  before anything downstream is built. The sample's *value* is never a
+  gate — a page whose subject is down must still deploy, and no metric
+  tells a blocked port from a service that is simply refusing. Its
+  committed marker is what switches routine CI on, so pushes during a
+  bootstrap stay inert instead of racing it.
 - **Check configuration convention:** the type is the protocol, spelled out;
   `host` is a bare hostname; host, port, and path are separate facts.
   Unrepresentable invalid states beat validated ones — a scheme inside the

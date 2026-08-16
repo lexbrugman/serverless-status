@@ -5,12 +5,15 @@ no plan, state, or mock can make.
 
 The dialogue as the backend stores it is what the probes execute — the
 provider's transmission is guarded upstream (scripts/check-sm-payloads.py
-in the public repository), the backend's storage only by asking it. And
-probe_success reaching 1 proves what nothing offline can: that the probes
-egress port 25 at all, and that the STARTTLS upgrade completes in order —
-a scrambled conversation times out instead of reporting green.
+in the public repository), the backend's storage only by asking it. And a
+published probe_success sample proves the checks are deployed and their
+probes are running.
 
-Nothing downstream is built until both hold.
+What the sample says is not a gate. A page whose subject is down must
+still deploy — reporting that is its job — and no metric distinguishes a
+blocked port from a server that is simply refusing today. So a failing
+check is reported for a human to judge, and only a check that never
+reports at all stops the run.
 """
 
 import base64
@@ -156,27 +159,40 @@ def probe_results(query_url, auth, jobs):
 
 
 def await_probes(query_url, user, token, jobs):
+    """Wait until every check has published a sample. Its value is reported,
+    never required."""
     auth = "Basic " + base64.b64encode(f"{user}:{token}".encode()).decode()
     deadline = time.monotonic() + DEADLINE_SECONDS
     while True:
         results = probe_results(query_url, auth, jobs)
-        pending = [job for job in jobs if job not in results]
-        failing = [job for job in jobs if results.get(job) == 0]
-        if not pending and not failing:
-            for job in jobs:
-                print(f"  {job}: probe_success=1")
+        silent = [job for job in jobs if job not in results]
+        if not silent:
+            for job in sorted(results):
+                print(f"  {job}: probe_success={results[job]:g}")
+            failing = sorted(job for job, value in results.items() if value == 0)
+            if failing:
+                print(
+                    "\nReporting failure: "
+                    + ", ".join(failing)
+                    + "\nThe page will show these as down, which is correct if they are."
+                    + " If they should be up, the probe's own log in the Synthetic"
+                    + " Monitoring UI shows how far the conversation got — for smtp,"
+                    + " a probe that cannot egress port 25 never gets a greeting."
+                )
             return []
-        print(f"  waiting: {len(pending)} not yet reporting, {len(failing)} reporting failure")
+        remaining = max(int(deadline - time.monotonic()), 0)
+        print(f"  waiting for a first sample from {len(silent)} check(s), {remaining}s left")
         if time.monotonic() >= deadline:
-            return [
-                f"{job}: {'never reported' if job in pending else 'probe_success=0'}"
-                for job in jobs
-                if job in pending or job in failing
-            ]
+            return [f"{job}: no probe_success sample published" for job in silent]
         time.sleep(POLL_SECONDS)
 
 
 def main():
+    # A CI log is a pipe, and a pipe is block-buffered: without this the
+    # dialogue and every poll line stay invisible until the step ends,
+    # which is exactly when they stop being useful.
+    sys.stdout.reconfigure(line_buffering=True)
+
     resources = state_resources()
     state = state_dialogues(resources)
     if not state:
@@ -187,21 +203,20 @@ def main():
 
     query_url, user, token = prometheus_credentials(resources)
     if not all((query_url, user, token)):
-        failures.append("no Prometheus read credentials in state — cannot verify probe_success")
+        failures.append("no Prometheus read credentials in state — cannot read probe results")
     elif not failures:
-        print(f"== awaiting probe_success for {len(state)} smtp check(s)")
+        print(f"== awaiting a first sample from {len(state)} smtp check(s)")
         failures += await_probes(query_url, user, token, sorted(state))
 
     if failures:
         sys.exit(
             "ERROR: step zero failed — nothing downstream is built until it passes:\n  "
             + "\n  ".join(failures)
-            + "\n\nA check that never reports means the probes cannot egress port 25.\n"
-            "A check reporting 0 means the conversation above did not complete;\n"
-            "the probe's own log (Synthetic Monitoring in Grafana) shows how far it got."
+            + "\n\nA check that never publishes is not running: it exists in Grafana but no"
+            "\nprobe executes it, which no amount of downstream infrastructure fixes."
         )
 
-    print("Step zero passed: the dialogue survived storage and the probes report success.")
+    print("Step zero passed: the dialogue survived storage and every check is publishing.")
 
 
 if __name__ == "__main__":

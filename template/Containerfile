@@ -1,12 +1,14 @@
 # The instance's tofu container: OpenTofu at exactly the version the
 # pinned release's CI tested, plus git (module fetching clones over it).
-# The version and its checksum-verifying installer are fetched from the
-# public repository at MODULE_REF — the tag the modules are pinned to, the
-# same trust root as the module code itself. Built on demand by
-# bin/tofu.sh with a tag hashed from its inputs, so a ref bump rebuilds
-# exactly once. The base tag floats on purpose: a local tool image.
+# The version and its checksum-verifying installer are fetched from
+# MODULE_REPO at MODULE_REF — the repository and tag the modules are
+# pinned to, the same trust root as the module code itself. Built on
+# demand by bin/tofu.sh with a tag hashed from its inputs, so a ref bump
+# rebuilds exactly once. The base tag floats on purpose: a local tool
+# image.
 FROM docker.io/library/debian:bookworm-slim
 
+ARG MODULE_REPO
 ARG MODULE_REF
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -20,7 +22,7 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 RUN set -eu; \
-  base="https://raw.githubusercontent.com/lexbrugman/serverless-status/${MODULE_REF}"; \
+  base="https://raw.githubusercontent.com/${MODULE_REPO}/${MODULE_REF}"; \
   curl -fsSL "$base/versions.env" -o /tmp/versions.env; \
   curl -fsSL "$base/bin/install-tofu.sh" -o /tmp/install-tofu.sh; \
   chmod +x /tmp/install-tofu.sh; \

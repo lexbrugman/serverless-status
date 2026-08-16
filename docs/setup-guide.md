@@ -132,13 +132,15 @@ dispatch builds everything, with step zero as a gate in the middle:
 2. it creates the state bucket, committing that root's state back too;
 3. it applies the Grafana checks — and nothing else;
 4. **step zero**: it reads back what the Synthetic Monitoring API actually
-   stored for each SMTP dialogue, prints it, and waits for
-   `probe_success` to reach 1 for every SMTP check. This is the one thing
-   OpenTofu cannot prove — that the probes egress port 25 at all, and that
-   the STARTTLS upgrade completes in order, since a scrambled conversation
-   times out rather than reporting green. A failure here stops the run
-   with nothing downstream built; the probe's own log in the Synthetic
-   Monitoring UI shows how far the conversation got;
+   stored for each SMTP dialogue, prints it, and waits until every SMTP
+   check has published a `probe_success` sample. That is the part
+   OpenTofu cannot prove — that the checks exist *and* run. What the
+   sample says is reported, not required: a page whose subject is down
+   must still deploy, since reporting that is its job, and no metric
+   distinguishes a blocked port from a server refusing today. A check
+   that never publishes stops the run; a check publishing failure is
+   named for you to judge in the Synthetic Monitoring UI, whose probe log
+   shows how far the conversation got;
 5. it adopts the hand-made trust, importing the console-created provider
    and role — only possible at this point, because an import evaluates the whole
    configuration and the Synthetic Monitoring providers are configured

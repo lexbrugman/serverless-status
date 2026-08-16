@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Assert cross-layer version mirrors agree.
+"""Assert cross-layer mirrors agree.
 
-The Lambda Python version is defined once in versions.env; every place that
-cannot derive it mechanically carries a literal mirror instead, and each
-mirror is pinned here so a half-landed bump fails lint (AGENTS.md: define
+The Lambda Python version is defined once in versions.env, and the CI roles
+are named once by the wiring that creates them; every place that cannot
+derive those values mechanically carries a literal mirror instead, and each
+mirror is pinned here so a half-landed change fails lint (AGENTS.md: define
 once and derive; a mirror is the fallback, never the default).
 """
 
@@ -23,6 +24,43 @@ MIRRORS = [
         "Lambda runtime",
     ),
 ]
+
+
+# The wiring names the roles it creates; a shell script cannot ask it, so
+# every restatement is pinned here. A rename that lands in one place turns
+# an assume or an import into a runtime failure nothing else catches.
+ROLE_SOURCE = "template/wiring/ci/main.tf"
+ROLE_MIRRORS = [
+    (
+        "apply",
+        "template/bin/ci-bootstrap-gate.sh",
+        r'^apply_role_name="([^"]+)"',
+        "the apply role name",
+    ),
+    (
+        "apply",
+        "template/bin/ci-adopt-trust.sh",
+        r"aws_iam_role\.apply'\s+(\S+)",
+        "the imported apply role",
+    ),
+    (
+        "plan",
+        "template/bin/ci-bootstrap-gate.sh",
+        r'^plan_role_name="([^"]+)"',
+        "the plan role name",
+    ),
+]
+
+
+def read_role_names() -> dict[str, str]:
+    names = {}
+    for role in ("plan", "apply"):
+        names[role] = extract(
+            ROLE_SOURCE,
+            rf'resource "aws_iam_role" "{role}" {{\s*\n\s*name\s*=\s*"([^"]+)"',
+            f"the {role} role's name",
+        )
+    return names
 
 
 def read_versions() -> dict[str, str]:
@@ -61,8 +99,17 @@ def main() -> None:
                 f"versions.env LAMBDA_PYTHON_VERSION is {lambda_python}"
             )
 
+    role_names = read_role_names()
+    for role, path, pattern, description in ROLE_MIRRORS:
+        actual = extract(path, pattern, description)
+        if actual != role_names[role]:
+            failures.append(
+                f"{path}: {description} is {actual}, "
+                f"{ROLE_SOURCE} names the {role} role {role_names[role]}"
+            )
+
     if failures:
-        sys.exit("ERROR: cross-layer version mirrors disagree:\n  " + "\n  ".join(failures))
+        sys.exit("ERROR: cross-layer mirrors disagree:\n  " + "\n  ".join(failures))
 
 
 if __name__ == "__main__":

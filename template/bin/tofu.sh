@@ -6,8 +6,9 @@
 #
 #   alias tofu="$PWD/bin/tofu.sh"
 #
-# The version derives from the module ref in page.tf, so a Renovate ref
-# bump moves tofu in lockstep and rebuilds the image exactly once.
+# The version derives from the module pin in page.tf — repository and ref
+# both — so a Renovate bump moves tofu in lockstep, rebuilds the image
+# exactly once, and a fork installs its own tooling rather than mine.
 # TF_VAR_* and AWS_* environment variables pass through, and ~/.aws mounts
 # read-only so profile and SSO credentials resolve.
 set -euo pipefail
@@ -15,8 +16,9 @@ set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
 
 module_ref="$(sed -n 's/.*?ref=\([^"]*\)".*/\1/p' "$ROOT/page.tf" | head -n 1)"
-if [[ -z "$module_ref" ]]; then
-  echo "ERROR: no module ?ref= found in page.tf — the tofu version derives from it." >&2
+module_repo="$(sed -n 's|.*"github.com/\([^/]*/[^/]*\)//modules/.*|\1|p' "$ROOT/page.tf" | head -n 1)"
+if [[ -z "$module_ref" || -z "$module_repo" ]]; then
+  echo "ERROR: no module source in page.tf — the tofu version derives from it." >&2
   exit 1
 fi
 
@@ -32,11 +34,15 @@ if [[ -z "$runtime" ]]; then
   fi
 fi
 
-input_hash="$(cat "$ROOT/Containerfile" <(printf '%s' "$module_ref") | sha256sum | cut -c1-12)"
+input_hash="$(
+  cat "$ROOT/Containerfile" <(printf '%s%s' "$module_repo" "$module_ref") |
+    sha256sum | cut -c1-12
+)"
 image="localhost/serverless-status-instance-tofu:${input_hash}"
 
 if ! "$runtime" image inspect "$image" >/dev/null 2>&1; then
   "$runtime" build \
+    --build-arg "MODULE_REPO=${module_repo}" \
     --build-arg "MODULE_REF=${module_ref}" \
     -t "$image" -f "$ROOT/Containerfile" "$ROOT" >&2
 fi

@@ -1,9 +1,8 @@
 name: Set up pinned tofu
 description: >-
-  Install OpenTofu at the version the pinned release's CI tested: the
-  version and its checksum-verifying installer are fetched from the public
-  repository at the module ref in page.tf — the same trust root as the
-  module code itself.
+  Install OpenTofu at the version the pinned release's CI tested. Both the
+  repository and the ref come from the module source in page.tf, so the
+  installer shares the module code's trust root exactly.
 
 runs:
   using: composite
@@ -13,7 +12,8 @@ runs:
       run: |
         set -euo pipefail
         module_ref="$(sed -n 's/.*?ref=\([^"]*\)".*/\1/p' page.tf | head -n 1)"
-        base="https://raw.githubusercontent.com/lexbrugman/serverless-status/${module_ref}"
+        upstream="$(sed -n 's|.*"github.com/\([^/]*/[^/]*\)//modules/.*|\1|p' page.tf | head -n 1)"
+        base="https://raw.githubusercontent.com/${upstream}/${module_ref}"
         curl -fsSL "$base/versions.env" -o "$RUNNER_TEMP/versions.env"
         curl -fsSL "$base/bin/install-tofu.sh" -o "$RUNNER_TEMP/install-tofu.sh"
         chmod +x "$RUNNER_TEMP/install-tofu.sh"

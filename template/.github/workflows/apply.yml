@@ -32,6 +32,9 @@ jobs:
           PUSH_BRANCH: ${{ github.ref_name }}
         run: bin/ci-sync.sh
 
+      - name: Resolve the instance region
+        run: bin/ci-resolve-region.sh
+
       - name: Resolve the repository identity
         uses: ./.github/actions/resolve-repository
 
@@ -42,7 +45,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
           role-to-assume: ${{ vars.APPLY_ROLE_ARN }}
-          aws-region: eu-west-1
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Apply
         run: bin/ci-apply.sh

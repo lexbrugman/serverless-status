@@ -19,7 +19,6 @@ if [[ "${SYNC_REEXEC:-}" != "1" ]]; then
   SYNC_REEXEC=1 exec "$self_copy" "$@"
 fi
 
-repo_url="https://github.com/lexbrugman/serverless-status"
 source_dir=""
 ref=""
 while [[ $# -gt 0 ]]; do
@@ -49,7 +48,14 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
 if [[ -z "$source_dir" ]]; then
-  git clone --quiet --depth 1 --branch "$ref" "$repo_url" "$work/upstream"
+  # Upstream is wherever the modules are pinned: a fork that syncs from the
+  # repository it does not use is the one split worth preventing.
+  upstream="$(sed -n 's|.*"github.com/\([^/]*/[^/]*\)//modules/.*|\1|p' page.tf | head -n 1)"
+  if [[ -z "$upstream" ]]; then
+    echo "ERROR: no module source in page.tf — it names the repository to sync from." >&2
+    exit 1
+  fi
+  git clone --quiet --depth 1 --branch "$ref" "https://github.com/${upstream}" "$work/upstream"
   template="$work/upstream/template"
 else
   template="$source_dir"
