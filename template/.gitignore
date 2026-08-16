@@ -4,4 +4,4 @@ plan.txt
 comment.md
 
 # Scratch root bin/sync.sh uses to read config.yaml with a real parser.
-.sync-reader/
+sync-reader/

@@ -73,8 +73,9 @@ fi
 
 # Inside the repository on purpose: the container wrapper resolves the
 # root from the working directory and mounts only that, so a scratch root
-# under /tmp would be invisible to it.
-reader="$ROOT/.sync-reader"
+# under /tmp would be invisible to it. Undotted so that an instance whose
+# wrapper predates this still finds it.
+reader="$ROOT/sync-reader"
 rm -rf "$reader"
 mkdir -p "$reader"
 trap 'rm -rf "$work" "$reader"' EXIT

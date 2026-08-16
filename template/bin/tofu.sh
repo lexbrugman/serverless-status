@@ -72,13 +72,19 @@ if [[ -d "$HOME/.aws" ]]; then
 fi
 
 # Run in the same directory relative to the repository root, so the
-# bootstrap root works exactly like the main one.
+# bootstrap root works exactly like the main one. Assembled rather than
+# pattern-stripped: a directory whose name begins with a dot is a real
+# directory, not the repository root wearing a prefix.
 relative="$(realpath --relative-to="$ROOT" "$PWD")"
+workdir="/work"
+if [[ "$relative" != "." ]]; then
+  workdir="/work/${relative}"
+fi
 
 exec "$runtime" run --rm \
   "${stdio_args[@]}" \
   "${user_args[@]}" \
   "${mount_args[@]}" \
-  -w "/work/${relative#.}" \
+  -w "$workdir" \
   "${env_args[@]}" \
   "$image" "$@"
