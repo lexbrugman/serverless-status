@@ -58,9 +58,15 @@ are mandatory on every refactor because master is release.
 
 ## The SMTP dialogue
 
-The mail conversation is first-class data, not a port knock: greeting, EHLO,
-STARTTLS, TLS upgrade, EHLO again on the secured channel, QUIT. A server
-that accepts connections but fails STARTTLS negotiation shows as down.
+The mail conversation is first-class data, not a port knock: greeting,
+EHLO, STARTTLS, TLS upgrade. A server that accepts connections but fails
+STARTTLS negotiation — or presents a certificate the handshake rejects —
+shows as down.
+
+The conversation ends at the upgrade because the probe's model cannot go
+further: every step reads a line before it may send one, and after the
+upgrade a mail server waits for the client. A post-upgrade EHLO would
+block until the check's own timeout, turning every server into a failure.
 
 The provider transmits `query_response` blocks in content-hash order, not
 declaration order. The exact spellings in `modules/checks/dialogue/` are

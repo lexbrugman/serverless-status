@@ -216,11 +216,16 @@ Named so they are known gaps rather than surprises.
   apply, and cannot prove a probe reaches port 25 at all. Step zero
   (apply the SMTP checks alone, then verify) is the gate, and nothing
   downstream is built until it passes.
-- What the Synthetic Monitoring backend stores is not necessarily what the
-  provider sent it: `scripts/check-sm-payloads.py` asserts the
-  transmission, the bootstrap reads the stored dialogue back, and only a
-  live `probe_success` proves the conversation runs in order — a scrambled
-  dialogue times out rather than reporting a failure that names itself.
+- A probe step reads before it may send, and `expect` is required, so an
+  empty pattern consumes a line rather than skipping the read. A
+  conversation therefore cannot continue past the point where the server
+  starts waiting for the client — which is why the SMTP dialogue ends at
+  the TLS upgrade. A step that waits for a line nobody will send fails on
+  the check's own timeout, naming nothing.
+- What reaches the probe is asserted at both hand-offs it passes through:
+  `scripts/check-sm-payloads.py` for what the provider transmits, the
+  bootstrap's step zero for what the backend stored. Neither can prove the
+  conversation succeeds — only a live probe does that.
 - Probe locations are a live fleet, not a constant. A location that
   Grafana retires fails the plan by name; the module's default is only a
   starting point.
