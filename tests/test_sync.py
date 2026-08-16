@@ -24,19 +24,19 @@ def instance(repo, tmp_path):
     )
     subprocess.run(["git", "init", "-q", str(target)], check=True)
 
-    # A second org in the data file, filled data, a user-owned file, a
-    # hand-made org file for a key the map no longer has, and template
-    # damage.
-    tfvars = target / "instance.auto.tfvars"
-    tfvars.write_text(
-        tfvars.read_text().replace(
-            "orgs = {",
-            'orgs = {\n  acme = {\n    stack_slug               = "acmecorp"'
-            "\n    monthly_execution_budget = 90000\n  }",
+    # A second account in the data file, filled data, a user-owned file, a
+    # generated account file for a key the config no longer has, and
+    # template damage.
+    config = target / "status.yaml"
+    config.write_text(
+        config.read_text().replace(
+            "grafana_orgs:\n",
+            "grafana_orgs:\n  acme:\n    stack_slug: acmecorp\n"
+            "    monthly_execution_budget: 90000\n",
         )
     )
-    stencil = (target / "org_example.tf").read_text()
-    (target / "org_zombie.tf").write_text(stencil.replace("example", "zombie"))
+    stencil = (target / "grafana_org_example.tf").read_text()
+    (target / "grafana_org_zombie.tf").write_text(stencil.replace("example", "zombie"))
     state = (target / "state.tfbackend").read_text()
     (target / "state.tfbackend").write_text(
         state.replace("CHANGE-ME-state-bucket", "my-real-bucket")
@@ -70,10 +70,10 @@ class TestSync:
         wiring = (instance / "wiring" / "ci" / "main.tf").read_text()
         assert "CORRUPTED" not in wiring
         assert not (instance / "wiring" / "stale-leftover.tf").exists()
-        assert not (instance / "org_zombie.tf").exists()
+        assert not (instance / "grafana_org_zombie.tf").exists()
 
-        acme = (instance / "org_acme.tf").read_text()
-        assert acme.startswith("# Generated from org_example.tf by bin/sync.sh")
+        acme = (instance / "grafana_org_acme.tf").read_text()
+        assert acme.startswith("# Generated from grafana_org_example.tf by bin/sync.sh")
         assert 'module "checks_acme"' in acme
         assert "grafana.example_cloud" not in acme
         page = (instance / "page.tf").read_text()
@@ -95,12 +95,12 @@ class TestSync:
         assert result.returncode == 1
         assert "no ref given and none found" in result.stderr
 
-    def test_fails_loudly_without_org_keys(self, repo, instance):
-        tfvars = instance / "instance.auto.tfvars"
-        content = tfvars.read_text()
-        start = content.index("orgs = {")
-        end = content.index("\n}", start)
-        tfvars.write_text(content[:start] + "orgs = {" + content[end:])
+    def test_fails_loudly_without_accounts(self, repo, instance):
+        config = instance / "status.yaml"
+        content = config.read_text()
+        start = content.index("grafana_orgs:")
+        end = content.index("\nchecks:", start)
+        config.write_text(content[:start] + "grafana_orgs: {}" + content[end:])
         result = run(
             [
                 str(instance / "bin" / "sync.sh"),
@@ -111,4 +111,4 @@ class TestSync:
             cwd=instance,
         )
         assert result.returncode == 1
-        assert "no org keys found" in result.stderr
+        assert "no accounts under grafana_orgs" in result.stderr

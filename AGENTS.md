@@ -188,11 +188,13 @@ green plan.
   budget it may spend. A derived identity cannot disagree with itself; a
   derived intention is a guess that happens to be right today.
 - **The instance is generated, not copied.** `bin/sync.sh` rebuilds every
-  template-owned file from the pinned release, and `org_<key>.tf` and
-  `page.tf` come from the orgs map in `instance.auto.tfvars`. The three
-  data files are the only thing an operator edits; hand edits anywhere
-  else do not survive the next sync, which CI runs before every plan and
-  apply. `GITHUB_TOKEN` may not write `.github/workflows`, so a release
+  template-owned file from the pinned release, and `grafana_org_<key>.tf`
+  and `page.tf` come from `status.yaml`. That file and `state.tfbackend`
+  are the only things an operator edits; hand edits anywhere else do not
+  survive the next sync, which CI runs before every plan and apply.
+  Config is YAML and is read with a YAML parser — OpenTofu's own
+  `yamldecode`, including where shell needs a value, because a regex over
+  a config file is a parser that is wrong eventually. `GITHUB_TOKEN` may not write `.github/workflows`, so a release
   that changes them fails that push loudly and is finished by hand — the
   one case where a sync is not automatic.
 - **Bootstrap is one dispatch, gated in the middle.** Step zero is

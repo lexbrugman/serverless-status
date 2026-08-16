@@ -7,8 +7,8 @@ cd "$(git rev-parse --show-toplevel)"
 
 tofu init -input=false -backend-config=state.tfbackend
 targets=()
-for file in org_*.tf; do
-  org="${file#org_}"
+for file in grafana_org_*.tf; do
+  org="${file#grafana_org_}"
   targets+=("-target=module.checks_${org%.tf}")
 done
 tofu apply -input=false -auto-approve "${targets[@]}"

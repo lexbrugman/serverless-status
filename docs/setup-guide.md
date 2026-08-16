@@ -49,23 +49,22 @@ A fresh clone of an empty private repository also works as the target —
 The stamper copies the template and pins the module sources to the release
 you cloned.
 
-The instance separates what you own from what the template owns. The
-data files — `*.tfvars` and `state.tfbackend` — are yours, and they are
-the only files you ever edit. Everything else is the template's:
-`org_<key>.tf` and `page.tf` are generated from the orgs map in
-`instance.auto.tfvars` — one org file per Grafana account, plus that
-org's entries in `page.tf`'s lists, carrying the module pins Renovate
-manages — and `wiring/`, `bin/`, the workflows, and the root `.tf` shims
-are logic. `bin/sync.sh` rewrites that whole class, and CI runs it before
-every plan and apply, so hand edits outside the data files do not
-survive. Fill in the data files:
+The instance separates what you own from what the template owns, and you
+own two files:
 
-- `instance.auto.tfvars` — who you are: domain, zone, site identity, and
-  your Grafana account(s) keyed by org;
-- `state.tfbackend` — where state lives: the bucket name and region,
-  each stated exactly once;
-- `checks.auto.tfvars` — what you monitor: your checks, each naming its
-  org.
+- `status.yaml` — everything about this instance: the domain and its zone,
+  the page's identity, where alerts go, your Grafana account(s), and every
+  check;
+- `state.tfbackend` — where OpenTofu keeps its state: the bucket and
+  region, each stated once. It is separate because a backend is configured
+  before any configuration is read.
+
+Everything else is generated. `grafana_org_<key>.tf` and `page.tf` come
+from `status.yaml` — one file per Grafana account, plus that account's
+entries in `page.tf`'s lists, carrying the module pins Renovate manages —
+and `wiring/`, `bin/`, the workflows, and the root `.tf` shims are logic.
+`bin/sync.sh` rewrites that whole class, and CI runs it before every plan
+and apply, so hand edits outside your two files do not survive.
 
 Create the state passphrase: a secret you invent once. It encrypts the
 state client-side, and every future plan and apply needs this exact value.
@@ -118,17 +117,17 @@ policy:
 Then, in the instance repository, add the repository variable
 `APPLY_ROLE_ARN` (the new role's ARN — the only role ARN you ever state;
 the read-only plan role's is derived from it) and two repository secrets:
-`GRAFANA_CLOUD_TOKENS` (the map from step 1, e.g.
-`{ example = "<provisioning token>" }`) and `STATE_PASSPHRASE` (from
-step 2).
+`GRAFANA_CLOUD_TOKENS` (the map from step 1, keyed by the same account
+identifiers `status.yaml` uses, e.g. `{ example = "<provisioning token>" }`)
+and `STATE_PASSPHRASE` (from step 2).
 
 ## 4. Bootstrap
 
 Run the **Bootstrap** workflow (Actions → Bootstrap → Run workflow). One
 dispatch builds everything, with step zero as a gate in the middle:
 
-1. it generates the org structure from your orgs map and commits it back,
-   like every sync;
+1. it generates the account structure from `status.yaml` and commits it
+   back, like every sync;
 2. it creates the state bucket, committing that root's state back too;
 3. it applies the Grafana checks — and nothing else;
 4. **step zero**: it reads back what the Synthetic Monitoring API actually
@@ -177,17 +176,17 @@ onto the same branch. The plan comment then reviews the
 synced tree — the tree the merge applies.
 
 The rebuild is `bin/sync.sh`. Logic files are replaced wholesale (which
-also removes files the release dropped); `org_<key>.tf` and `page.tf`
-regenerate from the release's stencil, one org per key in the orgs map
-in `instance.auto.tfvars`. Hand edits to generated files do not survive
-a sync — changes belong in the data files or upstream. Your data files,
-the state and lock files, and anything you added outside the
-template-owned classes are never touched.
+also removes files the release dropped); `grafana_org_<key>.tf` and
+`page.tf` regenerate from the release's stencil, one per account in
+`status.yaml`. Hand edits to generated files do not survive a sync —
+changes belong in `status.yaml` or upstream. Your two files, the state and
+lock files, and anything you added outside the template-owned classes are
+never touched.
 
 One case needs a hand: when a release changes the workflow files
 themselves, CI cannot push those (GitHub withholds workflow-write from
 its own token) and the plan job fails saying so. Run `bin/sync.sh` on the
-Renovate branch locally — it needs only git and sed — and push.
+Renovate branch locally and push.
 
 ## Working locally
 

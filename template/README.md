@@ -1,8 +1,7 @@
 # serverless-status instance
 
 The private root for a [serverless-status](https://github.com/lexbrugman/serverless-status)
-page. Day-to-day changes happen in `checks.auto.tfvars`; everything else is
-setup.
+page. Day-to-day changes happen in `status.yaml`; everything else is setup.
 
 ## Setup
 
@@ -12,12 +11,11 @@ The short version — no local tooling beyond git and a browser:
 1. **Grafana Cloud** — create the stack; create a provisioning access policy
    and token (scopes `accesspolicies:read|write|delete`, `stacks:read`),
    with an expiry, per organisation.
-2. **Fill in the data files** — `instance.auto.tfvars` (identity and
-   orgs), `state.tfbackend` (the bucket name, stated once), and
-   `checks.auto.tfvars` (every check names its org). They are the only
-   files you edit: everything else, `org_<key>.tf` and `page.tf`
-   included, is generated from them by `bin/sync.sh`, which CI runs
-   before every plan and apply.
+2. **Fill in your two files** — `status.yaml` (identity, accounts, checks,
+   alerting) and `state.tfbackend` (the bucket and region, stated once).
+   They are the only files you edit: everything else, `grafana_org_<key>.tf`
+   and `page.tf` included, is generated from them by `bin/sync.sh`, which
+   CI runs before every plan and apply.
 3. **OIDC trust, by hand once** — create the GitHub OIDC provider and an
    admin role named `serverless-status-apply` in the AWS console; set the
    `APPLY_ROLE_ARN` variable and the `GRAFANA_CLOUD_TOKENS` and
@@ -33,8 +31,8 @@ The short version — no local tooling beyond git and a browser:
 
 Renovate PRs bump the pinned release ref; CI rebuilds the template-owned
 files from that release onto the same branch (`bin/sync.sh`), and the plan
-comment reviews the result. Your data files and state always survive a
-sync.
+comment reviews the result. `status.yaml`, `state.tfbackend`, and your
+state always survive a sync.
 
 ## Working locally
 

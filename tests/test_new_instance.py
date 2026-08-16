@@ -18,7 +18,7 @@ class TestNewInstance:
         stamped = "".join(f.read_text() for f in target.rglob("*.tf"))
         assert "?ref=master" not in stamped
         assert stamped.count(f"?ref={TAG}") == 2
-        assert (target / "checks.auto.tfvars").exists()
+        assert (target / "status.yaml").exists()
         assert (target / ".github" / "workflows" / "ci.yml").exists()
         assert (target / "bootstrap" / "main.tf").exists()
 

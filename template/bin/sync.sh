@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Rebuild everything the template owns from the pinned release, preserving
-# what is yours: the data files and the state and lock files. Logic files
-# are replaced wholesale; org_<key>.tf and page.tf are generated from the
-# release's stencil, one org per key in the orgs map in
-# instance.auto.tfvars — hand edits to them do not survive a sync.
+# what is yours: status.yaml, state.tfbackend, and the state and lock files.
+# Logic files are replaced wholesale; grafana_org_<key>.tf and page.tf are
+# generated from the release's stencil, one per key in status.yaml's
+# grafana_orgs — hand edits to them do not survive a sync.
 #
 # Usage: sync.sh [REF]   (default: the ref pinned in page.tf)
 set -euo pipefail
@@ -61,20 +61,32 @@ else
   template="$source_dir"
 fi
 
-# The org set, read from the orgs map in instance.auto.tfvars: the data
-# file is the single source of truth, and every org_<key>.tf is generated
-# from it. Keys are sorted so the generated lists are stable.
-mapfile -t orgs < <(awk '
-  /^orgs[[:space:]]*=[[:space:]]*{/, /^}/ {
-    if ($0 ~ /^[[:space:]]+[A-Za-z0-9_-]+[[:space:]]*=[[:space:]]*{/) {
-      sub(/^[[:space:]]+/, "")
-      sub(/[[:space:]]*=.*/, "")
-      print
-    }
-  }
-' instance.auto.tfvars | sort)
-if [[ ${#orgs[@]} -eq 0 ]]; then
-  echo "ERROR: no org keys found in the orgs map in instance.auto.tfvars." >&2
+# The account set, read from status.yaml by the YAML parser this stack
+# already depends on rather than by pattern-matching the file: OpenTofu
+# evaluates it in a scratch root with no providers and no backend, so a
+# malformed file fails here with the parser's own message. Keys are sorted
+# so the generated lists are stable.
+tofu_bin="$(command -v tofu || true)"
+if [[ -z "$tofu_bin" ]]; then
+  tofu_bin="$ROOT/bin/tofu.sh"
+fi
+
+reader="$work/reader"
+mkdir -p "$reader"
+cp status.yaml "$reader/status.yaml"
+cat >"$reader/main.tf" <<'READER'
+output "org_keys" {
+  value = sort(keys(yamldecode(file("${path.module}/status.yaml")).grafana_orgs))
+}
+READER
+mapfile -t orgs < <(
+  cd "$reader"
+  "$tofu_bin" init -backend=false -input=false >/dev/null
+  "$tofu_bin" apply -auto-approve -input=false >/dev/null
+  "$tofu_bin" output -json org_keys | tr -d '[]" ' | tr ',' '\n'
+)
+if [[ ${#orgs[@]} -eq 0 || -z "${orgs[0]}" ]]; then
+  echo "ERROR: no accounts under grafana_orgs in status.yaml." >&2
   exit 1
 fi
 
@@ -84,19 +96,20 @@ mkdir -p "$render"
 cp -R "$template/." "$render/"
 find "$render" -name '*.tf' -print0 | xargs -0 sed -i "s|?ref=master|?ref=${ref}|g"
 
-# Org files from the stencil; the stencil's own header is replaced because
-# a generated file's instructions are the sync's, not the copy-me note's.
+# Account files from the stencil; the stencil's own header is replaced
+# because a generated file's instructions are the sync's, not the copy-me
+# note's.
 for org in "${orgs[@]}"; do
   {
-    echo "# Generated from org_example.tf by bin/sync.sh for org \"${org}\" —"
-    echo "# hand edits do not survive a sync; changes belong in the data files"
-    echo "# or upstream."
-    sed "s/example/${org}/g" "$render/org_example.tf" | sed '0,/^$/d'
-  } >"$work/org_${org}.tf"
+    echo "# Generated from grafana_org_example.tf by bin/sync.sh for the"
+    echo "# \"${org}\" account — hand edits do not survive a sync; changes"
+    echo "# belong in status.yaml or upstream."
+    sed "s/example/${org}/g" "$render/grafana_org_example.tf" | sed '0,/^$/d'
+  } >"$work/grafana_org_${org}.tf"
 done
-rm "$render/org_example.tf"
+rm "$render/grafana_org_example.tf"
 for org in "${orgs[@]}"; do
-  mv "$work/org_${org}.tf" "$render/org_${org}.tf"
+  mv "$work/grafana_org_${org}.tf" "$render/grafana_org_${org}.tf"
 done
 
 manifests=""
@@ -109,7 +122,7 @@ sed -i "s|check_manifests    = \[.*\]|check_manifests    = [${manifests%, }]|" "
 sed -i "s|prometheus_sources = \[.*\]|prometheus_sources = [${sources%, }]|" "$render/page.tf"
 
 # What is yours survives.
-for file in instance.auto.tfvars checks.auto.tfvars state.tfbackend .terraform.lock.hcl; do
+for file in status.yaml state.tfbackend .terraform.lock.hcl; do
   if [[ -f "$file" ]]; then
     cp "$file" "$render/$file"
   fi
@@ -130,5 +143,5 @@ find wiring bin .github bootstrap -type d -empty -delete 2>/dev/null || true
 
 cp -R "$render/." .
 
-echo "synced to ${ref} for orgs: ${orgs[*]}"
+echo "synced to ${ref} for accounts: ${orgs[*]}"
 echo "Review with git status and git diff, then commit."

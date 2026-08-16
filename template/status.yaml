@@ -1,0 +1,82 @@
+# Everything about this instance that is yours to decide. The only file you
+# edit: the .tf files around it are generated from what you write here, and
+# a template update overwrites them.
+#
+# The one thing that lives elsewhere is where OpenTofu keeps its state,
+# because the backend has to be configured before any of this is read —
+# that is state.tfbackend, two lines, filled in once.
+
+domain: status.example.com
+dns_zone_name: example.com
+
+site:
+  name: Example Corp
+  description: Live availability of our services.
+  timezone: Europe/Amsterdam
+  links:
+    - label: example.com
+      url: https://example.com
+
+# All optional; the renderer module documents the defaults.
+page: {}
+
+# Notification is Grafana's job, provisioned from here. Alerts fire when a
+# check has been down for down_for_minutes; leave email_addresses empty and
+# no alerting is created at all.
+alerting:
+  email_addresses: []
+  down_for_minutes: 5
+
+# The Grafana Cloud accounts whose probes run these checks. Adding one is an
+# entry here plus its token in the GRAFANA_CLOUD_TOKENS secret; CI generates
+# the rest. Each account keeps its own billing and its own execution budget:
+# the Synthetic Monitoring executions per month it may spend, which is the
+# allowance its plan includes or the overage its owner accepts.
+grafana_orgs:
+  example:
+    stack_slug: examplecorp
+    monthly_execution_budget: 90000
+
+# What you monitor. A check is identified by its host, its protocol, and
+# its port when that is not the protocol's own — so there is no name to
+# invent. That identity is its history: editing a path, a display name, a
+# frequency or a budget keeps it, and so does moving a check to another
+# Grafana account, while pointing it at a different host or port starts a
+# new one. Two checks alike in host, protocol and port — two paths on one
+# site — are the one case needing a `key:` to tell them apart, and the
+# plan says so by name if it happens.
+#
+# Optional per check: port and path (defaults per type), frequency_minutes,
+# timeout_seconds, order (page position), latency_budget_ms (exceeded while
+# up shows amber), display (defaults to the host), and alert: false to keep
+# a check off the notification path.
+checks:
+  - grafana_org: example
+    display: Website
+    group: Web
+    type: https
+    host: www.example.com
+    order: 10
+
+  - grafana_org: example
+    display: API
+    group: Web
+    type: https
+    host: api.example.com
+    path: /health
+    latency_budget_ms: 800
+    order: 20
+
+  - grafana_org: example
+    display: Inbound mail
+    group: Mail
+    type: smtp
+    host: mx1.example.com
+    order: 30
+
+  - grafana_org: example
+    display: Office connectivity
+    group: Network
+    type: ping
+    host: gw.example.com
+    order: 40

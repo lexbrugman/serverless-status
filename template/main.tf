@@ -1,21 +1,25 @@
-# Do not edit — wiring a template update overwrites. Your values live in
-# the *.tfvars data files; the logic lives under wiring/; your structural
-# files are org_<key>.tf and page.tf.
+# Do not edit — wiring a template update overwrites. Everything you decide
+# lives in status.yaml; the logic lives under wiring/; your generated
+# structure is grafana_org_<key>.tf and page.tf.
 
-# The version in the page footer is the release the modules are pinned to,
-# read from the pin itself rather than passed in by whatever ran OpenTofu:
-# a CI-injected value is absent from every other plan, and reads as drift
-# on the renderer's environment on every scheduled run. A root whose
-# module sources point at local paths has no release to name.
 locals {
+  # One decode, one source of truth. Every module input below is a field of
+  # this, so a typo in the file surfaces here rather than four layers down.
+  config = yamldecode(file("${path.root}/status.yaml"))
+
+  # The version in the page footer is the release the modules are pinned to,
+  # read from the pin itself rather than passed in by whatever ran OpenTofu:
+  # a CI-injected value is absent from every other plan, and reads as drift
+  # on the renderer's environment on every scheduled run. A root whose
+  # module sources point at local paths has no release to name.
   page_version = try(regex("[?]ref=([^\"]*)\"", file("${path.root}/page.tf"))[0], "local")
 }
 
 module "routing" {
   source = "./wiring/routing"
 
-  checks   = var.checks
-  org_keys = keys(var.orgs)
+  checks           = local.config.checks
+  grafana_org_keys = keys(local.config.grafana_orgs)
 }
 
 module "ci" {

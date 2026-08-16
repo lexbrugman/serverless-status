@@ -1,4 +1,4 @@
-# The page itself. The two lists grow by one entry per org_<key>.tf file:
+# The page itself. The two lists grow by one entry per account file:
 # the page consolidates every account, and each account keeps its own
 # billing and execution budget.
 
@@ -11,10 +11,10 @@ module "renderer" {
     aws.us_east_1 = aws.us_east_1
   }
 
-  domain        = var.domain
-  dns_zone_name = var.dns_zone_name
-  site          = var.site
-  page          = var.page
+  domain        = local.config.domain
+  dns_zone_name = local.config.dns_zone_name
+  site          = local.config.site
+  page          = local.config.page
 
   check_manifests    = [module.checks_example.check_manifest]
   prometheus_sources = [module.checks_example.prometheus]

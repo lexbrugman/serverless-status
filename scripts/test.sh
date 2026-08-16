@@ -11,7 +11,9 @@ cd "$ROOT"
 # its argument and silently re-scope coverage away from .coveragerc.
 pytest --quiet tests/ --cov
 
-for module in modules/*/; do
+# The published modules and the instance wiring alike: both are OpenTofu
+# that decides something, and both are testable without a provider.
+for module in modules/*/ template/wiring/*/; do
   if compgen -G "${module}tests/*.tftest.hcl" >/dev/null; then
     echo "tofu test (${module})"
     (cd "$module" && tofu init -backend=false -input=false >/dev/null && tofu test)
