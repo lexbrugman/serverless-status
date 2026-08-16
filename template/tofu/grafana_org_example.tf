@@ -98,3 +98,11 @@ module "alerting_example" {
   email_addresses  = local.alerting.email_addresses
   down_for_minutes = local.alerting.down_for_minutes
 }
+
+# What this account's checks will spend in a 30-day month, from their
+# frequencies and probe locations — the same number the budget precondition
+# enforces, surfaced so it can be read without provoking a failure.
+output "monthly_executions_example" {
+  description = "Projected Synthetic Monitoring executions per month for the example account."
+  value       = module.checks_example.monthly_executions
+}
