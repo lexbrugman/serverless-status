@@ -13,8 +13,12 @@ repository for your private instance.
    a single stack, or an API key made inside the Grafana instance, cannot
    read the stack through the org-level API and every apply stops at
    `403 Forbidden`. Give it scopes `accesspolicies:read`,
-   `accesspolicies:write`, `accesspolicies:delete`, and `stacks:read`
-   (`stacks:delete` is not needed and nothing here should ever hold it),
+   `accesspolicies:write`, `accesspolicies:delete`, `stacks:read`, and
+   `stack-service-accounts:write` — the last one lets the apply create the
+   service account that provisions alerting inside the stack, and without
+   it the apply stops at a bare `403 Forbidden` naming the service account
+   resource (`stacks:delete` is not needed and nothing here should ever
+   hold it),
    then create a token for it — **with an expiry**. This is the
    provisioning credential; it is the only Grafana secret that ever leaves
    Grafana, and it lives solely in the `GRAFANA_CLOUD_TOKENS` secret,

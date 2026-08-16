@@ -173,7 +173,8 @@ resource "grafana_cloud_access_policy_token" "metrics_read" {
 # reach: it mints a stack-scoped service account instead, and the root
 # configures a provider from it. Minted whether or not alerting is
 # configured, because a provider configuration must be evaluable even when
-# nothing uses it.
+# nothing uses it. The provisioning policy needs stack-service-accounts:write
+# for this; without it the apply stops here with a bare 403.
 resource "grafana_cloud_stack_service_account" "alerting" {
   provider = grafana.cloud
 

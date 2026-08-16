@@ -9,8 +9,8 @@ The full walkthrough lives in the public repository's `docs/setup-guide.md`.
 The short version — no local tooling beyond git and a browser:
 
 1. **Grafana Cloud** — create the stack; create a provisioning access policy
-   and token (scopes `accesspolicies:read|write|delete`, `stacks:read`),
-   with an expiry, per organisation.
+   and token (scopes `accesspolicies:read|write|delete`, `stacks:read`,
+   `stack-service-accounts:write`), with an expiry, per organisation.
 2. **Fill in your two files** — `config.yaml` (identity, accounts, checks,
    alerting) and `state.tfbackend` (the bucket and region, stated once).
    They are the only files you edit: everything else, `grafana_org_<key>.tf`
