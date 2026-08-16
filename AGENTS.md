@@ -250,4 +250,11 @@ Named so they are known gaps rather than surprises.
 - Comments state constraints the code cannot express, never the transition
   that produced them: a future reader sees only B, in the context of B.
 - Docs state rules, not membership; versions never appear in prose.
+- **The README is part of the product, and ships in the same commit as what
+  it describes.** A change to what the page renders redraws
+  `docs/screenshot.png` with `scripts/screenshot.sh` — one fixture, one
+  viewport, so successive images differ only where the page does — and a
+  change to what the project is or does rewrites the copy around it. No
+  check enforces this: a stale screenshot renders perfectly and a stale
+  paragraph reads perfectly, which is exactly why it is an agreement.
 - Commit subjects are one imperative line, no body, no trailers.

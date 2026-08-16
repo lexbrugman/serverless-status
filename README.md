@@ -16,9 +16,10 @@ a vendor who owns your history and your subdomain. This project refuses the
 choice. The page:
 
 - serves a real certificate on your hostname, via CloudFront + ACM;
-- covers `https`, `http`, `ping`, and `smtp` checks — the SMTP check runs
-  the actual STARTTLS dialogue, so a mail server that accepts connections
-  but fails TLS negotiation shows as down;
+- covers `https`, `http`, `ping`, and `smtp` checks — the SMTP check speaks
+  the actual dialogue up to the STARTTLS handshake, so a mail server that
+  accepts connections but cannot negotiate TLS, or presents a certificate
+  that fails to validate, shows as down;
 - owns its uptime bars, incident log, and `status.json` independently of
   any vendor's retention;
 - renders from cached state and says so when monitoring itself is down —
@@ -56,6 +57,7 @@ scripts/bootstrap-shell.sh scripts/test.sh         # pytest (100% line+branch) +
 scripts/bootstrap-shell.sh scripts/preview.py      # render all fixture states, no credentials
 BOOTSTRAP_PUBLISH=8000 scripts/bootstrap-shell.sh scripts/preview.py --serve   # …and browse them
 scripts/dev-stack.sh                               # the handler under the real Lambda runtime image
+scripts/screenshot.sh                              # redraw the screenshot above from that render
 ```
 
 Working agreements live in [AGENTS.md](AGENTS.md). Master is release: every

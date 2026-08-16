@@ -46,15 +46,18 @@ def overall_state(states: list[str]) -> str:
 
 def address(check: dict) -> str:
     """host, port, and path are separate facts in the manifest, so an
-    address is assembled, never parsed back out of a URL."""
+    address is assembled, never parsed back out of a URL. Only departures
+    from the protocol's defaults are worth the reader's attention: a port
+    that is the standard one, or a path that is the root, says nothing the
+    protocol tag has not said already."""
     kind, host = check["type"], check["host"]
+    if kind == "ping":
+        return host
+    port = "" if check["port"] == DEFAULT_PORTS[kind] else f":{check['port']}"
+    path = ""
     if kind in ("https", "http"):
-        port = "" if check["port"] == DEFAULT_PORTS[kind] else f":{check['port']}"
         path = check["path"] if check["path"] not in (None, "/") else ""
-        return f"{host}{port}{path}"
-    if kind == "smtp":
-        return f"{host}:{check['port']}"
-    return host
+    return f"{host}{port}{path}"
 
 
 def subtitle(check: dict) -> str:

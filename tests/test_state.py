@@ -65,9 +65,13 @@ class TestAddress:
         check = {"type": "http", "host": "www.example.com", "port": 8080, "path": None}
         assert state.address(check) == "www.example.com:8080"
 
-    def test_smtp_always_shows_port(self):
+    def test_smtp_hides_its_default_port(self):
         check = {"type": "smtp", "host": "mx1.example.com", "port": 25, "path": None}
-        assert state.address(check) == "mx1.example.com:25"
+        assert state.address(check) == "mx1.example.com"
+
+    def test_smtp_shows_a_submission_port(self):
+        check = {"type": "smtp", "host": "mx1.example.com", "port": 587, "path": None}
+        assert state.address(check) == "mx1.example.com:587"
 
     def test_ping_is_host_only(self):
         check = {"type": "ping", "host": "gw.example.com", "port": None, "path": None}
@@ -98,7 +102,17 @@ class TestSubtitle:
         }
         assert state.subtitle(check) == "/health"
 
-    def test_smtp_port_survives_a_hostname_display(self):
+    def test_only_a_nondefault_port_survives_a_hostname_display(self):
+        check = {
+            "type": "smtp",
+            "host": "mx1.example.com",
+            "port": 587,
+            "path": None,
+            "display": "mx1.example.com",
+        }
+        assert state.subtitle(check) == ":587"
+
+    def test_default_port_leaves_nothing_to_show(self):
         check = {
             "type": "smtp",
             "host": "mx1.example.com",
@@ -106,7 +120,7 @@ class TestSubtitle:
             "path": None,
             "display": "mx1.example.com",
         }
-        assert state.subtitle(check) == ":25"
+        assert state.subtitle(check) == ""
 
     def test_unrelated_display_keeps_the_whole_address(self):
         check = {
