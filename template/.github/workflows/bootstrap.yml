@@ -1,24 +1,17 @@
 name: Bootstrap
 
-# One-time: builds everything from an empty AWS account in two dispatches,
-# with no stored AWS credentials at any point. Prerequisite (see the setup
-# guide): the GitHub OIDC provider and an admin role named
-# serverless-status-apply, created in the IAM console. Phase all imports
+# One-time: builds everything from an empty AWS account in a single
+# dispatch, with no stored AWS credentials at any point. Prerequisite (see
+# the setup guide): the GitHub OIDC provider and an admin role named
+# serverless-status-apply, created in the IAM console. The run imports
 # both, and from then on their trust is managed — narrowed to the
 # production environment, so console-wizard sloppiness converges to the
 # written policy.
+#
+# Step zero sits in the middle: the run applies the Grafana checks, proves
+# the SMTP probes work, and only then builds anything downstream.
 on:
   workflow_dispatch:
-    inputs:
-      phase:
-        description: >-
-          checks = state bucket + the Grafana checks only, for the manual
-          step-zero verification; all = everything, printing the handover.
-        required: true
-        type: choice
-        options:
-          - checks
-          - all
 
 permissions:
   contents: read
@@ -30,10 +23,9 @@ concurrency:
 jobs:
   bootstrap:
     permissions:
-      # The state bucket's local state file is committed back.
+      # The state bucket's state file and the completion marker are
+      # committed back.
       contents: write
       id-token: write
     secrets: inherit
     uses: ./.github/workflows/run-bootstrap.yml
-    with:
-      phase: ${{ inputs.phase }}

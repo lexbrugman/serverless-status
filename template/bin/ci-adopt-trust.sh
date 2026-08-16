@@ -10,11 +10,11 @@ cd "$(git rev-parse --show-toplevel)"
 tofu init -input=false -backend-config=state.tfbackend
 account_id="$(aws sts get-caller-identity --query Account --output text)"
 state="$(tofu state list 2>/dev/null || true)"
-# An import evaluates the whole configuration; the sm provider configs
-# are only evaluable once the installations from phase checks are in
-# state.
+# An import evaluates the whole configuration, so it can only run once the
+# checks apply has put the Synthetic Monitoring installations in state —
+# the sm providers are configured from their outputs.
 if ! grep -q 'grafana_synthetic_monitoring_installation' <<<"$state"; then
-  echo "ERROR: no Synthetic Monitoring installation in state — dispatch phase checks first." >&2
+  echo "ERROR: no Synthetic Monitoring installation in state — the checks apply must run first." >&2
   exit 1
 fi
 if ! grep -q 'module.ci.aws_iam_openid_connect_provider.github' <<<"$state"; then

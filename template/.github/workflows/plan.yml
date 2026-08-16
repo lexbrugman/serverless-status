@@ -4,6 +4,10 @@ name: Plan
 # result and posts it as the PR's review comment.
 on:
   workflow_call:
+    inputs:
+      plan_role_arn:
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -38,7 +42,7 @@ jobs:
       - name: Assume the plan role
         uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
-          role-to-assume: ${{ vars.PLAN_ROLE_ARN }}
+          role-to-assume: ${{ inputs.plan_role_arn }}
           aws-region: eu-west-1
 
       - name: Plan

@@ -17,11 +17,11 @@ module "ci" {
 }
 
 output "plan_role_arn" {
-  description = "For the PLAN_ROLE_ARN repository variable."
+  description = "The read-only role CI plans and drift-checks with; the workflows derive it rather than reading it here."
   value       = module.ci.plan_role_arn
 }
 
 output "apply_role_arn" {
-  description = "For the APPLY_ROLE_ARN repository variable."
+  description = "The role CI applies with, stated once by hand as the APPLY_ROLE_ARN repository variable and managed from the adoption on."
   value       = module.ci.apply_role_arn
 }

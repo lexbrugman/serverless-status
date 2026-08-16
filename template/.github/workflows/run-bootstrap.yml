@@ -1,15 +1,11 @@
 name: Run Bootstrap
 
-# Creates the state bucket, then applies the requested phase — checks
-# only (step zero), or the trust adoption plus everything and the
-# handover summary. Every step is idempotent, so a failed run is re-run,
-# not repaired.
+# Generates the org structure, creates the state bucket, applies the
+# Grafana checks, verifies step zero, adopts the hand-made trust, and
+# applies the rest. Every step is idempotent, so a failed run is
+# re-dispatched, not repaired.
 on:
   workflow_call:
-    inputs:
-      phase:
-        required: true
-        type: string
 
 permissions:
   contents: write
@@ -22,7 +18,9 @@ env:
 jobs:
   bootstrap:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # Step zero waits for live probe results, and the final apply waits for
+    # ACM issuance.
+    timeout-minutes: 90
     # The role's managed trust accepts only runs bound to this environment.
     environment: production
 
@@ -49,24 +47,22 @@ jobs:
       - name: Create the state bucket
         run: bin/ci-create-state-bucket.sh
 
-      - name: Apply the checks (step zero)
-        if: inputs.phase == 'checks'
+      - name: Apply the checks
         run: bin/ci-bootstrap-checks.sh
 
-      # The dialogue as the backend stores it is what the probes execute;
-      # printing it makes a scrambled conversation a readable diff instead
-      # of a probe-log excavation.
-      - name: Report the stored dialogue
-        if: inputs.phase == 'checks'
-        run: bin/ci-dialogue-report.py
+      - name: Verify step zero
+        run: bin/ci-verify-step-zero.py
 
-      # Adoption happens in phase all, never earlier: an import evaluates
-      # the whole configuration, and the sm provider configs only become
-      # evaluable once phase checks has put the installations in state.
+      # Only possible after the checks apply: an import evaluates the whole
+      # configuration, and the sm providers are configured from the
+      # installations it creates.
       - name: Adopt the hand-made trust
-        if: inputs.phase == 'all'
         run: bin/ci-adopt-trust.sh
 
       - name: Apply everything
-        if: inputs.phase == 'all'
         run: bin/ci-bootstrap-all.sh
+
+      - name: Mark the bootstrap complete
+        env:
+          PUSH_BRANCH: ${{ github.ref_name }}
+        run: bin/ci-bootstrap-complete.sh

@@ -104,62 +104,57 @@ policy:
    environment.
 
 Then, in the instance repository, add the repository variable
-`APPLY_ROLE_ARN` (the new role's ARN) and two repository secrets:
+`APPLY_ROLE_ARN` (the new role's ARN — the only role ARN you ever state;
+the read-only plan role's is derived from it) and two repository secrets:
 `GRAFANA_CLOUD_TOKENS` (the map from step 1, e.g.
 `{ example = "<provisioning token>" }`) and `STATE_PASSPHRASE` (from
 step 2).
 
-## 4. Bootstrap from CI
+## 4. Bootstrap
 
-Run the **Bootstrap** workflow (Actions → Bootstrap → Run workflow) with
-phase `checks`. It generates the org structure from your orgs map
-(committed back to the repository, like every sync), creates the state
-bucket (its state also committed back), and applies only the Grafana
-checks.
+Run the **Bootstrap** workflow (Actions → Bootstrap → Run workflow). One
+dispatch builds everything, with step zero as a gate in the middle:
 
-## 5. Step zero — SMTP first
+1. it generates the org structure from your orgs map and commits it back,
+   like every sync;
+2. it creates the state bucket, committing that root's state back too;
+3. it applies the Grafana checks — and nothing else;
+4. **step zero**: it reads back what the Synthetic Monitoring API actually
+   stored for each SMTP dialogue, prints it, and waits for
+   `probe_success` to reach 1 for every SMTP check. This is the one thing
+   OpenTofu cannot prove — that the probes egress port 25 at all, and that
+   the STARTTLS upgrade completes in order, since a scrambled conversation
+   times out rather than reporting green. A failure here stops the run
+   with nothing downstream built; the probe's own log in the Synthetic
+   Monitoring UI shows how far the conversation got;
+5. it adopts the hand-made trust, importing the console-created provider
+   and role — only possible now, because an import evaluates the whole
+   configuration and the Synthetic Monitoring providers are configured
+   from what step 3 created;
+6. it applies everything else. The apply blocks on ACM certificate
+   issuance, so a finished run is a working TLS endpoint;
+7. it marks the bootstrap complete, which is what switches routine CI on:
+   plan, apply, and drift stay inert while the marker is absent, so pushes
+   during a bootstrap cannot race it.
 
-The SMTP checks are the reason this design exists, and they are the one
-thing OpenTofu cannot prove: whether the probes can egress port 25, and
-whether the STARTTLS dialogue is stored in order. Nothing downstream is
-built until this passes.
+Every step is idempotent — a failed run is re-dispatched, not repaired.
 
-In the Grafana console (or via the Prometheus API): watch
-`probe_success{job="<your smtp check>"}` report `1`, and confirm in the
-Synthetic Monitoring UI that the check's TCP query/response steps read
-greeting → EHLO → STARTTLS → upgrade → EHLO → QUIT in that order.
-
-Applying only the checks first is the right mechanism here; an `enabled`
-flag would be a permanent knob serving a one-time need.
-
-## 6. Everything, and the handover
-
-Run **Bootstrap** again with phase `all`. It first adopts the hand-made
-trust — importing the console-created provider and role, which is only
-possible now: an import evaluates the whole configuration, and the SM
-provider configs need phase `checks`'s state to exist — then applies
-everything. The apply blocks on ACM certificate issuance, so a finished
-run is a working TLS endpoint. Its summary lists the handover, verbatim:
-
-- the repository variable `PLAN_ROLE_ARN` — setting it is also the
-  switch that turns routine CI on: plan, apply, and drift jobs skip until
-  it exists, so pushes during bootstrap stay inert;
-- restrict the `production` environment's deployment branches to master
-  (GitHub created the environment when the bootstrap referenced it; the
-  restriction is what makes the apply role's environment-bound trust mean
-  master only);
-- the CloudFront hostname to verify the page and certificate on, before
-  DNS points anywhere.
+The summary then names what is left, and it is not configuration: restrict
+the `production` environment's deployment branches to master (GitHub
+created the environment when the run referenced it; the restriction is
+what makes the apply role's environment-bound trust mean master only), and
+verify the page and its certificate on the CloudFront hostname it prints,
+before DNS points anywhere.
 
 From then on: PRs get a plan comment, master pushes apply.
 
-## 7. Cutover
+## 5. Cutover
 
 Confirm the certificate from a device that never trusted the old page, then
 repoint your status hostname. Leave any previous monitoring running as a
 free second opinion.
 
-## 8. Upgrading
+## 6. Upgrading
 
 Upgrades run themselves: the instance's Renovate opens a PR bumping the
 pinned `?ref=`, and the sync CI runs before every plan rebuilds everything
@@ -182,10 +177,12 @@ Renovate branch locally — it needs only git and sed — and push.
 
 ## Working locally
 
-For debugging a bootstrap phase, or plans outside CI: `bin/tofu.sh` runs
+Nothing here needs a local OpenTofu — the bootstrap and every routine run
+happen in CI. For reading state or a plan outside CI, `bin/tofu.sh` runs
 OpenTofu in a container at exactly the version the pinned release's CI
-tested — nothing installs on the host. Alias it once per shell; `TF_VAR_*`
-and `AWS_*` variables pass through, and `~/.aws` mounts read-only:
+tested, so nothing installs on the host. Alias it once per shell;
+`TF_VAR_*` and `AWS_*` variables pass through, and `~/.aws` mounts
+read-only:
 
 ```sh
 alias tofu="$PWD/bin/tofu.sh"
@@ -193,9 +190,9 @@ export TF_VAR_grafana_cloud_tokens='{ example = "<provisioning token>" }'
 export TF_VAR_state_passphrase=<the stored passphrase>
 export AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=...   # or AWS_PROFILE
 
-(cd bootstrap && tofu init && tofu apply)
 tofu init -backend-config=state.tfbackend
-tofu apply -target=module.checks_example    # step zero, one per org
-tofu apply
-bin/ci-handover.sh                          # prints the handover values
+tofu plan
 ```
+
+The same secrets live in GitHub, where CI reads them; a local copy is a
+convenience for debugging, never a requirement.

@@ -22,12 +22,12 @@ The short version — no local tooling beyond git and a browser:
    admin role named `serverless-status-apply` in the AWS console; set the
    `APPLY_ROLE_ARN` variable and the `GRAFANA_CLOUD_TOKENS` and
    `STATE_PASSPHRASE` secrets in GitHub.
-4. **Bootstrap from CI** — run the **Bootstrap** workflow: phase `checks`
-   first (step zero: watch `probe_success` in Grafana and verify the
-   stored SMTP dialogue order), then phase `all`, which also adopts the
-   hand-made trust. Its summary lists the handover; setting
-   `PLAN_ROLE_ARN` switches routine CI on. From then on, PRs get a plan
-   comment and master pushes apply.
+4. **Bootstrap from CI** — run the **Bootstrap** workflow once. It builds
+   everything, gated in the middle by step zero: the SMTP dialogue is read
+   back from the Synthetic Monitoring API and every SMTP check must report
+   `probe_success` before anything downstream is built. Completing marks
+   the repository bootstrapped, which switches routine CI on: PRs get a
+   plan comment, master pushes apply.
 
 ## Upgrades
 

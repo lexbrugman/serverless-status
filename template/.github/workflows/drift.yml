@@ -3,6 +3,10 @@ name: Drift
 # Plans both roots read-only; any difference fails the run.
 on:
   workflow_call:
+    inputs:
+      plan_role_arn:
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -27,7 +31,7 @@ jobs:
       - name: Assume the plan role
         uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
-          role-to-assume: ${{ vars.PLAN_ROLE_ARN }}
+          role-to-assume: ${{ inputs.plan_role_arn }}
           aws-region: eu-west-1
 
       - name: Detect drift

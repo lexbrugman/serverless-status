@@ -10,11 +10,18 @@ permissions:
   contents: read
 
 jobs:
+  gate:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/bootstrap-gate.yml
+
   drift:
-    # Skips until the bootstrap handover sets PLAN_ROLE_ARN.
-    if: vars.PLAN_ROLE_ARN != ''
+    needs: [gate]
+    if: needs.gate.outputs.bootstrapped == 'true'
     permissions:
       contents: read
       id-token: write
     secrets: inherit
     uses: ./.github/workflows/drift.yml
+    with:
+      plan_role_arn: ${{ needs.gate.outputs.plan_role_arn }}

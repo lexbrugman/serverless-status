@@ -18,12 +18,17 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: false
 
-# Routine CI switches on at the handover: PLAN_ROLE_ARN is set after the
-# bootstrap's final phase, and until then these jobs skip rather than fail
-# against half-built trust.
 jobs:
+  # Routine CI switches on when the bootstrap completes, so pushes during
+  # one stay inert rather than failing against half-built trust.
+  gate:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/bootstrap-gate.yml
+
   plan:
-    if: github.event_name == 'pull_request' && vars.PLAN_ROLE_ARN != ''
+    needs: [gate]
+    if: github.event_name == 'pull_request' && needs.gate.outputs.bootstrapped == 'true'
     permissions:
       # write on contents: the sync commit lands on the PR branch.
       contents: write
@@ -31,9 +36,12 @@ jobs:
       pull-requests: write
     secrets: inherit
     uses: ./.github/workflows/plan.yml
+    with:
+      plan_role_arn: ${{ needs.gate.outputs.plan_role_arn }}
 
   apply:
-    if: github.event_name == 'push' && vars.PLAN_ROLE_ARN != ''
+    needs: [gate]
+    if: github.event_name == 'push' && needs.gate.outputs.bootstrapped == 'true'
     permissions:
       # write on contents: a direct push that changed the orgs map gets
       # its regenerated structure committed back before applying.
