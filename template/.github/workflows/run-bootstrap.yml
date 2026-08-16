@@ -53,6 +53,13 @@ jobs:
         if: inputs.phase == 'checks'
         run: bin/ci-bootstrap-checks.sh
 
+      # The dialogue as the backend stores it is what the probes execute;
+      # printing it makes a scrambled conversation a readable diff instead
+      # of a probe-log excavation.
+      - name: Report the stored dialogue
+        if: inputs.phase == 'checks'
+        run: bin/ci-dialogue-report.py
+
       # Adoption happens in phase all, never earlier: an import evaluates
       # the whole configuration, and the sm provider configs only become
       # evaluable once phase checks has put the installations in state.
