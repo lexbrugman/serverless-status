@@ -1,0 +1,12 @@
+name: Resolve repository
+description: >-
+  Export TF_VAR_github_repository as the OIDC token's sub claim spells it,
+  so the trust policy and the identity presenting itself cannot disagree.
+  The calling job needs id-token write.
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve the repository from the OIDC token
+      shell: bash
+      run: bin/ci-resolve-repository.py

@@ -25,6 +25,9 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7.0.1
 
+      - name: Resolve the repository identity
+        uses: ./.github/actions/resolve-repository
+
       - name: Set up pinned tofu
         uses: ./.github/actions/setup-tofu
 

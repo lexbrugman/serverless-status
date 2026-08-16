@@ -12,7 +12,7 @@ variable "dns_zone_name" {
 }
 
 variable "github_repository" {
-  description = "This instance repository exactly as the OIDC token's sub claim spells it — plain owner/name, or owner@id/name@id for organisations with immutable-ID subject claims (the ids are the numeric org and repository ids; see docs/setup-guide.md)."
+  description = "This instance repository as the OIDC token's sub claim spells it, resolved from the token by the workflows and supplied as TF_VAR_github_repository; never configured, because a configured spelling can disagree with the issuer's."
   type        = string
 }
 

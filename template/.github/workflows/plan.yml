@@ -36,6 +36,9 @@ jobs:
           PUSH_BRANCH: ${{ github.head_ref }}
         run: bin/ci-sync.sh
 
+      - name: Resolve the repository identity
+        uses: ./.github/actions/resolve-repository
+
       - name: Set up pinned tofu
         uses: ./.github/actions/setup-tofu
 

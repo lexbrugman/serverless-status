@@ -48,8 +48,8 @@ are logic. `bin/sync.sh` rewrites that whole class, and CI runs it before
 every plan and apply, so hand edits outside the data files do not
 survive. Fill in the data files:
 
-- `instance.auto.tfvars` — who you are: domain, zone, site identity, your
-  instance repository, and your Grafana account(s) keyed by org;
+- `instance.auto.tfvars` — who you are: domain, zone, site identity, and
+  your Grafana account(s) keyed by org;
 - `state.tfbackend` — where state lives: the bucket name and region,
   each stated exactly once;
 - `checks.auto.tfvars` — what you monitor: your checks, each naming its
@@ -97,11 +97,11 @@ policy:
    ids are numeric: the org id from
    `https://api.github.com/orgs/<owner>`, and the repository id — the API
    keeps private repositories behind a token — from the repo page's HTML
-   source, in the `octolytics-dimension-repository_id` meta tag.
-   Use that spelling both here and as `github_repository` in
-   `instance.auto.tfvars`, or no pattern will match. The first apply
-   replaces this policy with the managed one, narrowed to the production
-   environment.
+   source, in the `octolytics-dimension-repository_id` meta tag. Get this
+   one wrong and the first assume is refused; it is the only place the
+   spelling is yours to state, because from the adoption on the workflows
+   read it out of the token itself. The bootstrap replaces this policy
+   with the managed one, narrowed to the production environment.
 
 Then, in the instance repository, add the repository variable
 `APPLY_ROLE_ARN` (the new role's ARN — the only role ARN you ever state;
@@ -188,6 +188,10 @@ read-only:
 alias tofu="$PWD/bin/tofu.sh"
 export TF_VAR_grafana_cloud_tokens='{ example = "<provisioning token>" }'
 export TF_VAR_state_passphrase=<the stored passphrase>
+# In CI this comes from the OIDC token; outside it, state it by hand —
+# exactly as the trust policy spells it, or the plan proposes rewriting
+# the trust.
+export TF_VAR_github_repository=<owner>/<repo>
 export AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=...   # or AWS_PROFILE
 
 tofu init -backend-config=state.tfbackend

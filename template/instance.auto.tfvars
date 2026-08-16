@@ -4,12 +4,6 @@
 domain        = "status.example.com"
 dns_zone_name = "example.com"
 
-# This repository as the OIDC token's sub claim spells it: plain
-# owner/name, or owner@id/name@id when the organisation uses immutable-ID
-# subject claims — the ids are the numeric org and repository ids (see
-# docs/setup-guide.md).
-github_repository = "example-org/serverless-status-instance"
-
 site = {
   name        = "Example Corp"
   description = "Live availability of our services."
