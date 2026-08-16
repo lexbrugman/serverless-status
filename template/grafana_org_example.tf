@@ -74,3 +74,27 @@ module "checks_example" {
 
   depends_on = [grafana_synthetic_monitoring_installation.example]
 }
+
+# Configured from what the checks module minted, so the stack's own API is
+# reachable without a second credential in GitHub.
+provider "grafana" {
+  alias = "example_stack"
+  url   = module.checks_example.stack.url
+  auth  = module.checks_example.stack.auth
+}
+
+# The ref is stamped from the release you cloned; see docs/setup-guide.md.
+module "alerting_example" {
+  source = "github.com/lexbrugman/serverless-status//modules/alerting?ref=master"
+  count  = length(local.alerting.email_addresses) > 0 && length(module.routing.org_alert_jobs["example"]) > 0 ? 1 : 0
+
+  providers = {
+    grafana.stack = grafana.example_stack
+  }
+
+  name             = local.config.grafana_orgs["example"].stack_slug
+  jobs             = module.routing.org_alert_jobs["example"]
+  prometheus       = module.checks_example.prometheus
+  email_addresses  = local.alerting.email_addresses
+  down_for_minutes = local.alerting.down_for_minutes
+}

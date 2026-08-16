@@ -56,6 +56,19 @@ so the main stack can never delete its own state store. Destroying this
 stack can never take down the zone. Providers are configured in roots only; `moved` blocks
 are mandatory on every refactor because master is release.
 
+## Alerting
+
+The page reports; Grafana notifies. Alert rules, a contact point, and a
+folder are provisioned per account by `modules/alerting`, reached through a
+stack-scoped service account the checks module mints from the same cloud
+credential — the second credential handover in this design, for the same
+reason as the first: one control plane holds what the other needs.
+
+Alerting deliberately sits upstream of the renderer. Probe results become
+alerts inside Grafana, so the Lambda, DynamoDB, S3 and CloudFront are all
+absent from the path between a failing check and a human. The page going
+stale is itself an incident the alerting survives.
+
 ## The SMTP dialogue
 
 The mail conversation is first-class data, not a port knock: greeting,

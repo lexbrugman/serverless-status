@@ -7,6 +7,13 @@ locals {
   # this, so a typo in the file surfaces here rather than four layers down.
   config = yamldecode(file("${path.root}/status.yaml"))
 
+  # Alerting is optional and its shape is stated once here, so an instance
+  # that never mentions it reads the same as one that switched it off.
+  alerting = merge(
+    { email_addresses = [], down_for_minutes = 5 },
+    try(local.config.alerting, {}),
+  )
+
   # The version in the page footer is the release the modules are pinned to,
   # read from the pin itself rather than passed in by whatever ran OpenTofu:
   # a CI-injected value is absent from every other plan, and reads as drift

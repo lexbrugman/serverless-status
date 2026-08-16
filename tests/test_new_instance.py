@@ -1,5 +1,6 @@
 """new-instance.sh stamping, verified in the disposable tagged clone."""
 
+import re
 import shutil
 import subprocess
 
@@ -16,8 +17,8 @@ class TestNewInstance:
         result = run([str(repo / "scripts" / "new-instance.sh"), str(target)], cwd=repo)
         assert result.returncode == 0, result.stderr
         stamped = "".join(f.read_text() for f in target.rglob("*.tf"))
-        assert "?ref=master" not in stamped
-        assert stamped.count(f"?ref={TAG}") == 2
+        refs = set(re.findall(r"//modules/[a-z]+\?ref=([^\"]+)", stamped))
+        assert refs == {TAG}, f"every module source pins the release, got {refs}"
         assert (target / "status.yaml").exists()
         assert (target / ".github" / "workflows" / "ci.yml").exists()
         assert (target / "bootstrap" / "main.tf").exists()

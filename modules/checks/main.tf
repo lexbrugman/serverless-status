@@ -168,3 +168,24 @@ resource "grafana_cloud_access_policy_token" "metrics_read" {
   access_policy_id = grafana_cloud_access_policy.metrics_read.policy_id
   name             = "${var.stack_slug}-status-metrics-read"
 }
+
+# Alerting lives inside the stack, which a cloud access policy token cannot
+# reach: it mints a stack-scoped service account instead, and the root
+# configures a provider from it. Minted whether or not alerting is
+# configured, because a provider configuration must be evaluable even when
+# nothing uses it.
+resource "grafana_cloud_stack_service_account" "alerting" {
+  provider = grafana.cloud
+
+  stack_slug = var.stack_slug
+  name       = "${var.stack_slug}-status-alerting"
+  role       = "Admin"
+}
+
+resource "grafana_cloud_stack_service_account_token" "alerting" {
+  provider = grafana.cloud
+
+  stack_slug         = var.stack_slug
+  service_account_id = grafana_cloud_stack_service_account.alerting.id
+  name               = "${var.stack_slug}-status-alerting"
+}

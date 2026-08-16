@@ -85,6 +85,29 @@ generates a `grafana_org_<key>.tf` and its entries in `page.tf` from this
 map. The budget is stated rather than read because no API publishes an
 account's execution allowance.
 
+## Alerting
+
+```yaml
+alerting:
+  email_addresses: [ops@example.com]
+  down_for_minutes: 5
+```
+
+Notification is Grafana's job, provisioned from here. Every check alerts
+unless it says `alert: false`; an alert fires when `probe_success` has been
+below 1 for `down_for_minutes`, and resolves when it comes back. Leave
+`email_addresses` empty and no alerting is created at all.
+
+The rules live in the stack, not in this stack's own AWS: an outage that
+takes the renderer down still reaches a mailbox, because nothing of ours
+sits between a failing probe and the message. Each account gets a folder, a
+contact point, and one multi-dimensional rule that fans out per check.
+Routing is attached to the rule itself, so the stack's notification policy
+tree stays exactly as its owner arranged it.
+
+A check that stops publishing alerts too. Silence means the check is no
+longer being run, which is the failure nobody notices unaided.
+
 ## Site and page
 
 ```yaml

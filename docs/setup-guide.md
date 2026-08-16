@@ -53,8 +53,8 @@ The instance separates what you own from what the template owns, and you
 own two files:
 
 - `status.yaml` — everything about this instance: the domain and its zone,
-  the page's identity, where alerts go, your Grafana account(s), and every
-  check;
+  the page's identity, where alerts go (leave `email_addresses` empty for
+  none), your Grafana account(s), and every check;
 - `state.tfbackend` — where OpenTofu keeps its state: the bucket and
   region, each stated once. It is separate because a backend is configured
   before any configuration is read.

@@ -29,3 +29,12 @@ output "monthly_executions" {
   description = "Computed Synthetic Monitoring executions per month, for eyeballing against the Grafana console's own accounting."
   value       = local.monthly_executions
 }
+
+output "stack" {
+  description = "How to reach this stack's own API: the URL and a service account token. Feeds the root's per-account grafana provider, which the alerting module runs against."
+  sensitive   = true
+  value = {
+    url  = data.grafana_cloud_stack.this.url
+    auth = grafana_cloud_stack_service_account_token.alerting.key
+  }
+}

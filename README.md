@@ -22,6 +22,9 @@ choice. The page:
   that fails to validate, shows as down;
 - owns its uptime bars, incident log, and `status.json` independently of
   any vendor's retention;
+- alerts by email through Grafana, provisioned from the same file as the
+  checks — upstream of the renderer, so an outage that takes the page down
+  still reaches you;
 - renders from cached state and says so when monitoring itself is down —
   never a 500, never stale green presented as current;
 - depends on nothing external to display: inline CSS and SVG, system fonts,
