@@ -52,26 +52,71 @@ class TestOverallState:
         assert state.overall_state(["up", "up"]) == "operational"
 
 
-class TestSubtitle:
+class TestAddress:
     def test_https_default_port_with_path(self):
         check = {"type": "https", "host": "api.example.com", "port": 443, "path": "/health"}
-        assert state.subtitle(check) == "api.example.com/health"
+        assert state.address(check) == "api.example.com/health"
 
     def test_https_root_path_is_bare(self):
         check = {"type": "https", "host": "www.example.com", "port": 443, "path": "/"}
-        assert state.subtitle(check) == "www.example.com"
+        assert state.address(check) == "www.example.com"
 
     def test_http_nondefault_port(self):
         check = {"type": "http", "host": "www.example.com", "port": 8080, "path": None}
-        assert state.subtitle(check) == "www.example.com:8080"
+        assert state.address(check) == "www.example.com:8080"
 
     def test_smtp_always_shows_port(self):
         check = {"type": "smtp", "host": "mx1.example.com", "port": 25, "path": None}
-        assert state.subtitle(check) == "mx1.example.com:25"
+        assert state.address(check) == "mx1.example.com:25"
 
     def test_ping_is_host_only(self):
         check = {"type": "ping", "host": "gw.example.com", "port": None, "path": None}
-        assert state.subtitle(check) == "gw.example.com"
+        assert state.address(check) == "gw.example.com"
+
+
+class TestSubtitle:
+    """The protocol is shown as its own tag, so the subtitle carries only
+    what the display name does not already say."""
+
+    def test_empty_when_the_name_is_the_address(self):
+        check = {
+            "type": "ping",
+            "host": "gw.example.com",
+            "port": None,
+            "path": None,
+            "display": "gw.example.com",
+        }
+        assert state.subtitle(check) == ""
+
+    def test_keeps_only_the_remainder(self):
+        check = {
+            "type": "https",
+            "host": "api.example.com",
+            "port": 443,
+            "path": "/health",
+            "display": "api.example.com",
+        }
+        assert state.subtitle(check) == "/health"
+
+    def test_smtp_port_survives_a_hostname_display(self):
+        check = {
+            "type": "smtp",
+            "host": "mx1.example.com",
+            "port": 25,
+            "path": None,
+            "display": "mx1.example.com",
+        }
+        assert state.subtitle(check) == ":25"
+
+    def test_unrelated_display_keeps_the_whole_address(self):
+        check = {
+            "type": "https",
+            "host": "www.example.com",
+            "port": 443,
+            "path": None,
+            "display": "Website",
+        }
+        assert state.subtitle(check) == "www.example.com"
 
 
 class TestDaySeries:

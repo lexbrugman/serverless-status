@@ -43,6 +43,20 @@ class TestRenderPage:
         assert 'data-rendered-at="2026-08-14T12:00:00Z"' in page
         assert '<meta http-equiv="refresh" content="60">' in page
 
+    def test_every_row_names_its_protocol(self):
+        page = render.render_page(fixtures.build_state("all-green", NOW))
+        assert '<span class="kind">https</span>' in page
+        assert '<span class="kind">smtp</span>' in page
+        assert '<span class="kind">ping</span>' in page
+
+    def test_a_row_whose_address_adds_nothing_has_no_subtitle(self):
+        """Two checks on one host are told apart by the protocol tag, so the
+        subtitle is dropped rather than repeating the name."""
+        built = fixtures.build_state("all-green", NOW)
+        built["checks"][0]["subtitle"] = ""
+        page = render.render_page(built)
+        assert '<span class="sub"></span>' not in page
+
     def test_down_page_lists_the_outage_as_ongoing(self):
         page = render.render_page(fixtures.build_state("one-down", NOW))
         assert "Partial outage" in page
@@ -98,5 +112,6 @@ class TestRenderStatus:
         assert status["overall"] == "partial_outage"
         by_key = {c["key"]: c for c in status["checks"]}
         assert by_key["mail-inbound"]["state"] == "down"
+        assert by_key["mail-inbound"]["type"] == "smtp"
         assert by_key["website"]["uptime_window_days"] == 90
         assert status["outages"][0]["ended_at"] is None

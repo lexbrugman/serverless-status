@@ -87,6 +87,8 @@ h1{{font-size:22px;font-weight:650;letter-spacing:-.01em}}
 .row+.row{{border-top:1px solid var(--border)}}
 .row-top{{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}}
 .name{{font-weight:600}}
+.kind{{color:var(--ink-secondary);font-size:11px;font-weight:600;letter-spacing:.04em;
+  text-transform:uppercase;border:1px solid var(--border);border-radius:6px;padding:1px 6px}}
 .sub{{color:var(--ink-muted);font-size:13px}}
 .row-now{{margin-left:auto;display:flex;align-items:center;gap:14px}}
 .latency{{font-size:13px;color:var(--ink-secondary);font-variant-numeric:tabular-nums}}
@@ -132,10 +134,16 @@ def _row(check: dict, page: dict) -> str:
         latency = f'<span class="latency">{check["latency_ms"]} ms</span>'
     ratio = check["uptime_ratio"]
     ratio_text = f"{ratio:.2%}" if ratio is not None else "—"
+    # The tag is what tells two checks on one host apart; the subtitle is
+    # empty whenever the address says no more than the name does.
+    subtitle = ""
+    if check["subtitle"]:
+        subtitle = f'<span class="sub">{_esc(check["subtitle"])}</span>'
     return f"""<article class="row">
 <div class="row-top">
   <span class="name">{_esc(check["display"])}</span>
-  <span class="sub">{_esc(check["subtitle"])}</span>
+  <span class="kind">{_esc(check["type"])}</span>
+  {subtitle}
   <div class="row-now">{spark}{latency}
     <span class="pill p-{check["state"]}">{theme.state_glyph(check["state"])}{meta["label"]}</span>
   </div>
@@ -255,6 +263,9 @@ def render_status(state: dict) -> str:
             "key": c["key"],
             "display": c["display"],
             "group": c["group"],
+            # Two checks may share a host and a display name; the protocol
+            # is what tells them apart here as well as on the page.
+            "type": c["type"],
             "state": c["state"],
             "latency_ms": c["latency_ms"],
             "uptime_ratio": c["uptime_ratio"],

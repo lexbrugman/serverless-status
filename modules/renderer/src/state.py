@@ -44,9 +44,9 @@ def overall_state(states: list[str]) -> str:
     return "operational"
 
 
-def subtitle(check: dict) -> str:
-    """host, port, and path are separate facts in the manifest, so the row
-    subtitle is assembled, never parsed back out of a URL."""
+def address(check: dict) -> str:
+    """host, port, and path are separate facts in the manifest, so an
+    address is assembled, never parsed back out of a URL."""
     kind, host = check["type"], check["host"]
     if kind in ("https", "http"):
         port = "" if check["port"] == DEFAULT_PORTS[kind] else f":{check['port']}"
@@ -55,6 +55,20 @@ def subtitle(check: dict) -> str:
     if kind == "smtp":
         return f"{host}:{check['port']}"
     return host
+
+
+def subtitle(check: dict) -> str:
+    """What the address says beyond the display name. The protocol is a
+    tag of its own, and a name that already is the host leaves nothing to
+    repeat — two checks on one host differ by their tag, not by a line of
+    identical text."""
+    full = address(check)
+    display = check["display"]
+    if full == display:
+        return ""
+    if full.startswith(display):
+        return full[len(display) :]
+    return full
 
 
 def day_series(rollup_rows: list[dict], history_days: int, today: date) -> list[dict]:
@@ -158,6 +172,7 @@ def assemble(
                 "key": key,
                 "display": check["display"],
                 "group": check["group"],
+                "type": check["type"],
                 "subtitle": subtitle(check),
                 "state": state,
                 "up": up,
