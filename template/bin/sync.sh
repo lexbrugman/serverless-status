@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Rebuild everything the template owns from the pinned release, preserving
-# what is yours: status.yaml, state.tfbackend, and the state and lock files.
+# what is yours: config.yaml, state.tfbackend, and the state and lock files.
 # Logic files are replaced wholesale; grafana_org_<key>.tf and page.tf are
-# generated from the release's stencil, one per key in status.yaml's
+# generated from the release's stencil, one per key in config.yaml's
 # grafana_orgs — hand edits to them do not survive a sync.
 #
 # Usage: sync.sh [REF]   (default: the ref pinned in page.tf)
@@ -61,7 +61,7 @@ else
   template="$source_dir"
 fi
 
-# The account set, read from status.yaml by the YAML parser this stack
+# The account set, read from config.yaml by the YAML parser this stack
 # already depends on rather than by pattern-matching the file: OpenTofu
 # evaluates it in a scratch root with no providers and no backend, so a
 # malformed file fails here with the parser's own message. Keys are sorted
@@ -73,10 +73,10 @@ fi
 
 reader="$work/reader"
 mkdir -p "$reader"
-cp status.yaml "$reader/status.yaml"
+cp config.yaml "$reader/config.yaml"
 cat >"$reader/main.tf" <<'READER'
 output "org_keys" {
-  value = sort(keys(yamldecode(file("${path.module}/status.yaml")).grafana_orgs))
+  value = sort(keys(yamldecode(file("${path.module}/config.yaml")).grafana_orgs))
 }
 READER
 mapfile -t orgs < <(
@@ -86,7 +86,7 @@ mapfile -t orgs < <(
   "$tofu_bin" output -json org_keys | tr -d '[]" ' | tr ',' '\n'
 )
 if [[ ${#orgs[@]} -eq 0 || -z "${orgs[0]}" ]]; then
-  echo "ERROR: no accounts under grafana_orgs in status.yaml." >&2
+  echo "ERROR: no accounts under grafana_orgs in config.yaml." >&2
   exit 1
 fi
 
@@ -103,7 +103,7 @@ for org in "${orgs[@]}"; do
   {
     echo "# Generated from grafana_org_example.tf by bin/sync.sh for the"
     echo "# \"${org}\" account — hand edits do not survive a sync; changes"
-    echo "# belong in status.yaml or upstream."
+    echo "# belong in config.yaml or upstream."
     sed "s/example/${org}/g" "$render/grafana_org_example.tf" | sed '0,/^$/d'
   } >"$work/grafana_org_${org}.tf"
 done
@@ -122,7 +122,7 @@ sed -i "s|check_manifests    = \[.*\]|check_manifests    = [${manifests%, }]|" "
 sed -i "s|prometheus_sources = \[.*\]|prometheus_sources = [${sources%, }]|" "$render/page.tf"
 
 # What is yours survives.
-for file in status.yaml state.tfbackend .terraform.lock.hcl; do
+for file in config.yaml state.tfbackend .terraform.lock.hcl; do
   if [[ -f "$file" ]]; then
     cp "$file" "$render/$file"
   fi

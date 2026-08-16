@@ -1,5 +1,5 @@
 # Do not edit — wiring a template update overwrites. What you decide lives
-# in status.yaml; what is left here is what must never be written to a
+# in config.yaml; what is left here is what must never be written to a
 # file: the secrets, and the identity CI reads from its own token.
 
 variable "github_repository" {

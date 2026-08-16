@@ -6,7 +6,7 @@ terraform {
 }
 
 variable "checks" {
-  description = "The checks list exactly as status.yaml states it."
+  description = "The checks list exactly as config.yaml states it."
   type        = any
 }
 

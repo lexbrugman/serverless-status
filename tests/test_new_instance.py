@@ -19,7 +19,7 @@ class TestNewInstance:
         stamped = "".join(f.read_text() for f in target.rglob("*.tf"))
         refs = set(re.findall(r"//modules/[a-z]+\?ref=([^\"]+)", stamped))
         assert refs == {TAG}, f"every module source pins the release, got {refs}"
-        assert (target / "status.yaml").exists()
+        assert (target / "config.yaml").exists()
         assert (target / ".github" / "workflows" / "ci.yml").exists()
         assert (target / "bootstrap" / "main.tf").exists()
 

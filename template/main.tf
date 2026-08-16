@@ -1,11 +1,11 @@
 # Do not edit — wiring a template update overwrites. Everything you decide
-# lives in status.yaml; the logic lives under wiring/; your generated
+# lives in config.yaml; the logic lives under wiring/; your generated
 # structure is grafana_org_<key>.tf and page.tf.
 
 locals {
   # One decode, one source of truth. Every module input below is a field of
   # this, so a typo in the file surfaces here rather than four layers down.
-  config = yamldecode(file("${path.root}/status.yaml"))
+  config = yamldecode(file("${path.root}/config.yaml"))
 
   # Alerting is optional and its shape is stated once here, so an instance
   # that never mentions it reads the same as one that switched it off.

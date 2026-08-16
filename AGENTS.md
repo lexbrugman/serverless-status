@@ -189,7 +189,7 @@ green plan.
   derived intention is a guess that happens to be right today.
 - **The instance is generated, not copied.** `bin/sync.sh` rebuilds every
   template-owned file from the pinned release, and `grafana_org_<key>.tf`
-  and `page.tf` come from `status.yaml`. That file and `state.tfbackend`
+  and `page.tf` come from `config.yaml`. That file and `state.tfbackend`
   are the only things an operator edits; hand edits anywhere else do not
   survive the next sync, which CI runs before every plan and apply.
   Config is YAML and is read with a YAML parser — OpenTofu's own

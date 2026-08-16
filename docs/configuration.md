@@ -1,6 +1,6 @@
 # Configuration
 
-An instance states everything in `status.yaml`. The `.tf` files beside it
+An instance states everything in `config.yaml`. The `.tf` files beside it
 are generated from it and overwritten by every sync, and the one thing that
 cannot live there is `state.tfbackend`, because a backend is configured
 before any configuration is read.

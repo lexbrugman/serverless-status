@@ -27,7 +27,7 @@ def instance(repo, tmp_path):
     # A second account in the data file, filled data, a user-owned file, a
     # generated account file for a key the config no longer has, and
     # template damage.
-    config = target / "status.yaml"
+    config = target / "config.yaml"
     config.write_text(
         config.read_text().replace(
             "grafana_orgs:\n",
@@ -96,7 +96,7 @@ class TestSync:
         assert "no ref given and none found" in result.stderr
 
     def test_fails_loudly_without_accounts(self, repo, instance):
-        config = instance / "status.yaml"
+        config = instance / "config.yaml"
         content = config.read_text()
         start = content.index("grafana_orgs:")
         end = content.index("\nchecks:", start)
