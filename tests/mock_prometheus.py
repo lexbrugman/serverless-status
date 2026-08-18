@@ -33,13 +33,23 @@ class PrometheusHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
-        query = parse_qs(parsed.query).get("query", [""])[0]
+        params = parse_qs(parsed.query)
+        query = params.get("query", [""])[0]
         if parsed.path == "/api/v1/query_range":
-            payload = self.responses.get("duration_range")
+            key = "success_series" if "probe_success" in query else "duration_range"
+        elif ">= bool " in query:
+            key = "success"
+        elif query.startswith("sum by (job) (count_over_time"):
+            key = "day_samples"
+        elif query.startswith("sum by (job) (sum_over_time"):
+            key = "day_successes"
         elif "probe_success" in query:
-            payload = self.responses.get("success")
+            key = "success"
         else:
-            payload = self.responses.get("duration")
+            key = "duration"
+        payload = self.responses.get(key)
+        if payload is not None and parsed.path == "/api/v1/query_range":
+            payload = _within(payload, float(params.get("start", ["0"])[0]))
 
         if self.status_code != 200 or payload is None:
             self.send_response(self.status_code if self.status_code != 200 else 503)
@@ -51,6 +61,25 @@ class PrometheusHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+
+def _within(payload: dict, start: float) -> dict:
+    """Only the samples the caller asked for. A range query resumes from a
+    watermark, so returning everything would hand back transitions the
+    caller has already recorded."""
+    return {
+        "status": payload["status"],
+        "data": {
+            "resultType": payload["data"]["resultType"],
+            "result": [
+                {
+                    "metric": series["metric"],
+                    "values": [point for point in series["values"] if float(point[0]) >= start],
+                }
+                for series in payload["data"]["result"]
+            ],
+        },
+    }
 
 
 def serve(state_name: str, port: int) -> ThreadingHTTPServer:

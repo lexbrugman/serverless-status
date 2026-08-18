@@ -3,7 +3,7 @@ history in, one state dict out. No I/O — this is what makes the page
 unit-testable and preview.py possible without credentials.
 """
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 DEFAULT_PORTS = {"https": 443, "http": 80, "smtp": 25}
@@ -119,19 +119,61 @@ def window_ratio(days: list[dict], rollup_rows: list[dict]) -> float | None:
     return successes / samples
 
 
-def detect_transitions(
-    previous_checks: dict, current_up: dict[str, bool | None], now: datetime
+def day_start(today: date, timezone: str) -> datetime:
+    """Midnight of the site's own day, as an instant. The rollup counts the
+    day a reader recognises, not the one UTC happens to be having."""
+    return datetime.combine(today, time.min, tzinfo=ZoneInfo(timezone))
+
+
+def moment(epoch: float) -> datetime:
+    return datetime.fromtimestamp(epoch, UTC)
+
+
+def confirmed_transitions(
+    series: list[tuple[float, float]],
+    window_multiple: int,
+    quorum: float,
+    before: bool | None,
 ) -> list[dict]:
-    """up→down opens an outage, down→up closes one. Unknown on either side is
-    no transition: absence of data is never treated as downtime."""
+    """Edges in a raw success series, as the shared definition of down sees
+    them.
+
+    Reading the series rather than comparing one run against the last is
+    what makes an incident survive the renderer being down, and what lets
+    it carry a probe's timestamp instead of a render's.
+
+    A verdict needs a window of samples; the outage started when the
+    service did. So a confirmed change is stamped at the first sample of
+    the run that confirmed it, never at the moment the window filled — the
+    difference is the whole debounce, and it would land in every duration.
+
+    Unknown on either side is no transition: absence of data is never
+    treated as downtime.
+    """
+    min_samples = max(1, window_multiple - 1)
     transitions = []
-    for key, up in current_up.items():
-        if up is None:
+    current = before
+    window: list[float] = []
+    run_start = None
+    run_up = None
+    for at, fraction in series:
+        point_up = fraction >= quorum
+        if point_up != run_up:
+            run_up, run_start = point_up, at
+        window.append(fraction)
+        if len(window) > window_multiple:
+            window.pop(0)
+        if len(window) < min_samples:
             continue
-        before = previous_checks.get(key)
-        if before is None or before.get("up") is None or before["up"] == up:
+        verdict = sum(window) / len(window) >= quorum
+        if current is None:
+            current = verdict
             continue
-        transitions.append({"key": key, "kind": "closed" if up else "opened", "at": iso(now)})
+        if verdict != current:
+            transitions.append(
+                {"kind": "closed" if verdict else "opened", "at": iso(moment(run_start))}
+            )
+            current = verdict
     return transitions
 
 

@@ -89,52 +89,83 @@ def frequency_groups(mani: dict) -> dict[int, list[str]]:
     return groups
 
 
-def query_metrics(mani: dict, now: datetime) -> tuple[dict | None, dict | None, dict | None, bool]:
-    """(success, duration, duration_range, degraded), merged across every
-    source by job. Any failure anywhere yields the fully degraded render —
-    never a 500, never stale green presented as current, and never history
-    written from a partial picture."""
-    success: dict = {}
-    duration: dict = {}
-    duration_range: dict = {}
+def query_metrics(mani: dict, now: datetime, today: date, since: datetime) -> tuple[dict, bool]:
+    """Everything one run reads from Prometheus, merged across every source
+    by job. Any failure anywhere yields the fully degraded render — never a
+    500, never stale green presented as current, and never history written
+    from a partial picture."""
+    read: dict = {
+        "success": {},
+        "duration": {},
+        "duration_range": {},
+        "fractions": {},
+        "day_samples": {},
+        "day_successes": {},
+    }
+    page = mani["page"]
+    elapsed = max(1, int((now - state.day_start(today, mani["site"]["timezone"])).total_seconds()))
     try:
-        page = mani["page"]
         for source in prometheus_sources():
             for frequency, jobs in frequency_groups(mani).items():
-                query = prometheus.up_query(
-                    jobs, frequency, page["down_window_multiple"], page["down_quorum"]
+                read["success"].update(
+                    prometheus.instant(
+                        source,
+                        prometheus.up_query(
+                            jobs, frequency, page["down_window_multiple"], page["down_quorum"]
+                        ),
+                        now,
+                    )
                 )
-                success.update(prometheus.instant(source, query, now))
-            duration.update(prometheus.instant(source, prometheus.INSTANT_DURATION, now))
-            duration_range.update(prometheus.latency_range(source, now))
-        return success, duration, duration_range, False
+                read["fractions"].update(
+                    prometheus.series(
+                        source, prometheus.fraction_query(jobs), since, now, frequency * 60
+                    )
+                )
+                samples_query, successes_query = prometheus.day_totals_queries(jobs, elapsed)
+                read["day_samples"].update(prometheus.instant(source, samples_query, now))
+                read["day_successes"].update(prometheus.instant(source, successes_query, now))
+            read["duration"].update(prometheus.instant(source, prometheus.INSTANT_DURATION, now))
+            read["duration_range"].update(prometheus.latency_range(source, now))
+        return read, False
     except prometheus.PrometheusError as error:
         _cache.pop("sources", None)
         print(f"degraded: {error}")
-        return None, None, None, True
+        return read, True
 
 
-def record_history(tbl, mani: dict, previous: dict | None, success, duration, now, today) -> None:
-    """Transitions become outage records; the sample folds into today's
-    rollup. Skipped entirely on a degraded run, so a Grafana outage never
-    corrupts history with false downtime."""
+def record_history(tbl, mani: dict, previous: dict | None, read: dict, now, today) -> str | None:
+    """Outages come from walking the series, so one survives the renderer
+    having been down and carries a probe's timestamp rather than a render's.
+    The day's rollup is recomputed from the source rather than incremented.
+
+    Returns how far the series was read, which is the watermark the next run
+    starts from. Skipped entirely on a degraded run, so a Grafana outage
+    never corrupts history with false downtime and the gap is walked once
+    Prometheus answers again."""
     page = mani["page"]
     expires_at = int((now + timedelta(days=page["retention_days"])).timestamp())
-    current_up = {
-        key: (None if key not in success else success[key] >= 1) for key in mani["checks"]
-    }
     previous_checks = (previous or {}).get("checks", {})
-    for transition in state.detect_transitions(previous_checks, current_up, now):
-        if transition["kind"] == "opened":
-            store.open_outage(tbl, transition["key"], transition["at"], expires_at)
-        else:
-            store.close_outage(tbl, transition["key"], transition["at"])
+    watermark = None
+    for key in mani["checks"]:
+        series = read["fractions"].get(key, [])
+        if series:
+            watermark = series[-1][0] if watermark is None else max(watermark, series[-1][0])
+        for transition in state.confirmed_transitions(
+            series,
+            page["down_window_multiple"],
+            page["down_quorum"],
+            previous_checks.get(key, {}).get("up"),
+        ):
+            if transition["kind"] == "opened":
+                store.open_outage(tbl, key, transition["at"], expires_at)
+            else:
+                store.close_outage(tbl, key, transition["at"])
     day = today.isoformat()
-    for key, up in current_up.items():
-        if up is None:
-            continue
-        latency_ms = round(duration[key] * 1000) if key in duration else None
-        store.update_rollup(tbl, key, day, up, latency_ms, expires_at)
+    for key, samples in read["day_samples"].items():
+        store.put_rollup(
+            tbl, key, day, int(samples), int(read["day_successes"].get(key, 0)), expires_at
+        )
+    return state.iso(state.moment(watermark)) if watermark else None
 
 
 def read_history(tbl, mani: dict, today: date) -> tuple[dict, dict]:
@@ -165,6 +196,32 @@ def report_observations(mani: dict, success: dict | None, now: datetime, degrade
         print(f"report: {failure}")
 
 
+# Prometheus keeps a fortnight on the plan this runs on, so a gap longer
+# than that is not walkable however long the renderer was away.
+SERIES_HORIZON_DAYS = 13
+
+
+def series_start(mani: dict, previous: dict | None, now: datetime) -> datetime:
+    """Where to resume reading.
+
+    Behind the watermark by a whole verdict window, not at it: a verdict
+    needs several samples, and one run only ever adds one. Re-reading is
+    free — an outage is keyed by the moment it started, so recording the
+    same one twice writes the same record.
+
+    A run that never completed left the watermark where it was, so the gap
+    is walked whole rather than lost.
+    """
+    slowest = max(frequency_groups(mani), default=1)
+    pad = timedelta(minutes=slowest * (mani["page"]["down_window_multiple"] + 1))
+    horizon = now - timedelta(days=SERIES_HORIZON_DAYS)
+    mark = (previous or {}).get("processed_through")
+    if not mark:
+        return horizon
+    resume = datetime.strptime(mark, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC) - pad
+    return max(resume, horizon)
+
+
 def render_handler(event, context):
     mani = manifest()
     # Resolved before anything else runs: an unknown zone is a configuration
@@ -175,17 +232,20 @@ def render_handler(event, context):
     tbl = store.table(os.environ["TABLE_NAME"], os.environ.get("DDB_ENDPOINT"))
 
     previous = store.get_latest(tbl)
-    success, duration, duration_range, degraded = query_metrics(mani, now)
+    since = series_start(mani, previous, now)
+    read, degraded = query_metrics(mani, now, today, since)
+    processed_through = None
     if not degraded:
-        record_history(tbl, mani, previous, success, duration, now, today)
+        processed_through = record_history(tbl, mani, previous, read, now, today)
     rollups, outage_records = read_history(tbl, mani, today)
+    success, duration = read["success"], read["duration"]
 
     page_state = state.assemble(
         mani,
         now=now,
         success=success,
         duration=duration,
-        duration_range=duration_range,
+        duration_range=read["duration_range"],
         rollups=rollups,
         outages=outage_records,
         previous=previous,
@@ -205,7 +265,7 @@ def render_handler(event, context):
         # A degraded run must not touch the snapshot: it still holds the
         # last real observation, and its rendered_at is what makes the
         # "showing state from ..." notice honest.
-        store.put_latest(tbl, state.snapshot(page_state), page_state["source"], degraded)
+        store.put_latest(tbl, state.snapshot(page_state), processed_through)
 
     publish(documents)
     report_observations(mani, success, now, degraded)

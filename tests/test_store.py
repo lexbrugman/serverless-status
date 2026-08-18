@@ -1,7 +1,6 @@
 import boto3
 import pytest
 import store
-from botocore.exceptions import ClientError
 from moto import mock_aws
 
 TABLE = "status-test"
@@ -40,57 +39,43 @@ class TestLatest:
         assert store.get_latest(tbl) is None
 
     def test_round_trip_restores_plain_types(self, tbl):
-        store.put_latest(tbl, SNAPSHOT, source="grafana", degraded=False)
+        store.put_latest(tbl, SNAPSHOT, "2026-08-14T11:59:00Z")
         loaded = store.get_latest(tbl)
         assert loaded["rendered_at"] == "2026-08-14T12:00:00Z"
-        assert loaded["source"] == "grafana"
-        assert loaded["degraded"] is False
+        assert loaded["processed_through"] == "2026-08-14T11:59:00Z"
         assert loaded["checks"]["website"] == SNAPSHOT["checks"]["website"]
+
         assert isinstance(loaded["checks"]["website"]["latency_ms"], int)
+
+    def test_a_run_that_read_nothing_records_no_watermark(self, tbl):
+        """A degraded run leaves it where it was, so the gap it could not
+        read is walked whole once Prometheus answers again."""
+        store.put_latest(tbl, SNAPSHOT, None)
+        assert store.get_latest(tbl)["processed_through"] is None
 
 
 class TestRollups:
-    def test_samples_accumulate_atomically(self, tbl):
-        store.update_rollup(tbl, "website", "2026-08-14", True, 100, 1)
-        store.update_rollup(tbl, "website", "2026-08-14", True, 300, 1)
-        store.update_rollup(tbl, "website", "2026-08-14", False, None, 1)
-        rows = store.rollups(tbl, "website", "2026-08-14", "2026-08-14")
-        assert rows == [
-            {
-                "date": "2026-08-14",
-                "samples": 3,
-                "successes": 2,
-                "latency_sum": 400,
-                "latency_max": 300,
-            }
+    def test_a_day_is_written_whole_and_rewriting_it_is_harmless(self, tbl):
+        """Recomputed from the source rather than incremented, so a retry
+        cannot double-count what it recalculates."""
+        store.put_rollup(tbl, "website", "2026-08-14", 288, 287, 1)
+        store.put_rollup(tbl, "website", "2026-08-14", 288, 287, 1)
+        assert store.rollups(tbl, "website", "2026-08-14", "2026-08-14") == [
+            {"date": "2026-08-14", "samples": 288, "successes": 287}
         ]
 
-    def test_latency_max_only_rises(self, tbl):
-        store.update_rollup(tbl, "website", "2026-08-14", True, 300, 1)
-        store.update_rollup(tbl, "website", "2026-08-14", True, 100, 1)
+    def test_a_later_recount_replaces_the_earlier_one(self, tbl):
+        store.put_rollup(tbl, "website", "2026-08-14", 100, 100, 1)
+        store.put_rollup(tbl, "website", "2026-08-14", 120, 119, 1)
         rows = store.rollups(tbl, "website", "2026-08-14", "2026-08-14")
-        assert rows[0]["latency_max"] == 300
+        assert rows[0]["samples"] == 120
+        assert rows[0]["successes"] == 119
 
     def test_query_is_bounded_by_the_day_range(self, tbl):
         for day in ("2026-08-01", "2026-08-10", "2026-08-14"):
-            store.update_rollup(tbl, "website", day, True, 100, 1)
+            store.put_rollup(tbl, "website", day, 10, 10, 1)
         rows = store.rollups(tbl, "website", "2026-08-09", "2026-08-14")
         assert [r["date"] for r in rows] == ["2026-08-10", "2026-08-14"]
-
-    def test_unexpected_client_error_propagates(self, tbl):
-        class Exploding:
-            calls = 0
-
-            def update_item(self, **kwargs):
-                Exploding.calls += 1
-                if Exploding.calls > 1:
-                    raise ClientError(
-                        {"Error": {"Code": "ValidationException", "Message": "boom"}},
-                        "UpdateItem",
-                    )
-
-        with pytest.raises(ClientError, match="ValidationException"):
-            store.update_rollup(Exploding(), "website", "2026-08-14", True, 100, 1)
 
 
 class TestOutages:

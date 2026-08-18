@@ -9,7 +9,6 @@ from datetime import datetime
 
 import boto3
 from boto3.dynamodb.conditions import Key
-from botocore.exceptions import ClientError
 
 LATEST_PK = "SITE"
 LATEST_SK = "LATEST"
@@ -37,52 +36,39 @@ def get_latest(tbl) -> dict | None:
         return None
     return {
         "rendered_at": item["rendered_at"],
-        "source": item.get("source"),
-        "degraded": bool(item.get("degraded")),
+        "processed_through": item.get("processed_through"),
         "checks": _plain(item["checks"]),
     }
 
 
-def put_latest(tbl, snapshot: dict, source: str, degraded: bool) -> None:
-    tbl.put_item(
-        Item={
-            "PK": LATEST_PK,
-            "SK": LATEST_SK,
-            "rendered_at": snapshot["rendered_at"],
-            "source": source,
-            "degraded": degraded,
-            "checks": snapshot["checks"],
-        }
-    )
+def put_latest(tbl, snapshot: dict, processed_through: str | None) -> None:
+    """The snapshot, plus how far the series has been read.
+
+    The watermark is only advanced by a run that actually read something,
+    so a degraded run leaves it where it was and the gap is walked once
+    Prometheus answers again."""
+    item = {
+        "PK": LATEST_PK,
+        "SK": LATEST_SK,
+        "rendered_at": snapshot["rendered_at"],
+        "checks": snapshot["checks"],
+    }
+    if processed_through:
+        item["processed_through"] = processed_through
+    tbl.put_item(Item=item)
 
 
-def update_rollup(
-    tbl, key: str, day: str, up: bool, latency_ms: int | None, expires_at: int
-) -> None:
-    """Fold one sample into the day's rollup with an atomic ADD, then raise
-    latency_max under a condition — concurrent or retried invocations cannot
-    double-count incorrectly."""
-    latency = latency_ms or 0
+def put_rollup(tbl, key: str, day: str, samples: int, successes: int, expires_at: int) -> None:
+    """The day's totals as recomputed from the source.
+
+    A whole-value write rather than an increment: what is recalculated from
+    Prometheus cannot be double-counted by a retry, which is a stronger
+    guarantee than an atomic ADD and needs no reasoning about ordering."""
     tbl.update_item(
         Key={"PK": f"CHECK#{key}", "SK": f"DAY#{day}"},
-        UpdateExpression=("ADD samples :one, successes :s, latency_sum :l SET expires_at = :exp"),
-        ExpressionAttributeValues={
-            ":one": 1,
-            ":s": 1 if up else 0,
-            ":l": latency,
-            ":exp": expires_at,
-        },
+        UpdateExpression="SET samples = :n, successes = :s, expires_at = :exp",
+        ExpressionAttributeValues={":n": samples, ":s": successes, ":exp": expires_at},
     )
-    try:
-        tbl.update_item(
-            Key={"PK": f"CHECK#{key}", "SK": f"DAY#{day}"},
-            UpdateExpression="SET latency_max = :l",
-            ConditionExpression="attribute_not_exists(latency_max) OR latency_max < :l",
-            ExpressionAttributeValues={":l": latency},
-        )
-    except ClientError as error:
-        if error.response["Error"]["Code"] != "ConditionalCheckFailedException":
-            raise
 
 
 def rollups(tbl, key: str, first_day: str, last_day: str) -> list[dict]:
@@ -95,8 +81,6 @@ def rollups(tbl, key: str, first_day: str, last_day: str) -> list[dict]:
             "date": item["SK"].removeprefix("DAY#"),
             "samples": _plain(item["samples"]),
             "successes": _plain(item["successes"]),
-            "latency_sum": _plain(item.get("latency_sum", 0)),
-            "latency_max": _plain(item.get("latency_max", 0)),
         }
         for item in response["Items"]
     ]
@@ -126,10 +110,16 @@ def close_outage(tbl, key: str, ended_at: str) -> None:
     for item in response["Items"]:
         if "ended_at" not in item:
             fmt = "%Y-%m-%dT%H:%M:%SZ"
-            duration = int(
-                (
-                    datetime.strptime(ended_at, fmt) - datetime.strptime(item["started_at"], fmt)
-                ).total_seconds()
+            # A series re-walked from further back can offer a closing edge
+            # that predates the record; a duration never runs backwards.
+            duration = max(
+                0,
+                int(
+                    (
+                        datetime.strptime(ended_at, fmt)
+                        - datetime.strptime(item["started_at"], fmt)
+                    ).total_seconds()
+                ),
             )
             tbl.update_item(
                 Key={"PK": item["PK"], "SK": item["SK"]},

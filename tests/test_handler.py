@@ -87,18 +87,26 @@ class TestHappyPath:
         tbl = store.table(TABLE)
         latest = store.get_latest(tbl)
         assert latest["checks"]["website"]["up"] is True
-        today = datetime.now(UTC).date().isoformat()
+        mani = handler.manifest()
+        today = state.site_today(datetime.now(UTC), mani["site"]["timezone"]).isoformat()
         rows = store.rollups(tbl, "website", today, today)
-        assert rows[0]["samples"] == 1
-        assert rows[0]["successes"] == 1
+        # Recomputed from Prometheus rather than incremented per run, so the
+        # day holds every execution so far and not one per render.
+        assert rows[0]["samples"] > 1
+        assert rows[0]["successes"] <= rows[0]["samples"]
+        assert latest["processed_through"] is not None
 
     def test_warm_invocation_reuses_credentials_and_manifest(self, aws):
         handler.render_handler({}, None)
         assert "sources" in handler._cache
-        handler.render_handler({}, None)
         tbl = store.table(TABLE)
-        today = datetime.now(UTC).date().isoformat()
-        assert store.rollups(tbl, "website", today, today)[0]["samples"] == 2
+        mani = handler.manifest()
+        day = state.site_today(datetime.now(UTC), mani["site"]["timezone"]).isoformat()
+        first = store.rollups(tbl, "website", day, day)[0]
+        handler.render_handler({}, None)
+        # A second run recomputes the same day from the same source, so the
+        # totals do not move. An increment would have doubled them.
+        assert store.rollups(tbl, "website", day, day)[0] == first
 
 
 class TestTransitions:
@@ -131,9 +139,14 @@ class TestRecordHistory:
         mani = handler.manifest()
         now = datetime.now(UTC)
         today = state.site_today(now, mani["site"]["timezone"])
-        handler.record_history(tbl, mani, None, {"website": 1.0}, {}, now, today)
+        read = {
+            "fractions": {},
+            "day_samples": {"website": 12.0},
+            "day_successes": {"website": 11.0},
+        }
+        handler.record_history(tbl, mani, None, read, now, today)
         day = today.isoformat()
-        assert store.rollups(tbl, "website", day, day)[0]["samples"] == 1
+        assert store.rollups(tbl, "website", day, day)[0]["samples"] == 12
         assert store.rollups(tbl, "api", day, day) == []
 
     def test_the_rollup_day_is_the_sites_not_utc(self):
@@ -148,6 +161,9 @@ class TestDegraded:
         handler.render_handler({}, None)
         tbl = store.table(TABLE)
         before = store.get_latest(tbl)
+        mani = handler.manifest()
+        day = state.site_today(datetime.now(UTC), mani["site"]["timezone"]).isoformat()
+        before_rows = store.rollups(tbl, "website", day, day)
 
         mock_prometheus.PrometheusHandler.status_code = 503
         try:
@@ -160,8 +176,11 @@ class TestDegraded:
         assert "Live monitoring data is currently unavailable" in result["body"]
         # The snapshot still holds the last real observation.
         assert store.get_latest(tbl) == before
-        today = datetime.now(UTC).date().isoformat()
-        assert store.rollups(tbl, "website", today, today)[0]["samples"] == 1
+        mani = handler.manifest()
+        day = state.site_today(datetime.now(UTC), mani["site"]["timezone"]).isoformat()
+        # Untouched: a degraded run writes no history, and leaves the
+        # watermark where it was so the gap is walked once metrics return.
+        assert store.rollups(tbl, "website", day, day) == before_rows
 
     def test_no_credentials_at_all_is_the_degraded_path(self, aws, monkeypatch):
         monkeypatch.delenv("PROM_PARAM")

@@ -195,29 +195,39 @@ class TestDaySeries:
         assert state.window_ratio([{"date": "2026-08-14"}], []) is None
 
 
-TRANSITION_PREVIOUS = {
-    "went-down": {"up": True, "latency_ms": 10, "since": "x"},
-    "came-up": {"up": False, "latency_ms": None, "since": "x"},
-    "steady": {"up": True, "latency_ms": 10, "since": "x"},
-    "was-unknown": {"up": None, "latency_ms": None, "since": None},
-}
+class TestConfirmedTransitions:
+    """Edges read out of the series, at the sample they actually happened."""
 
+    @staticmethod
+    def series(values, step=300):
+        return [(float(i * step), float(v)) for i, v in enumerate(values)]
 
-class TestTransitions:
-    def test_detects_transitions_only(self):
-        current = {
-            "went-down": False,
-            "came-up": True,
-            "steady": True,
-            "was-unknown": True,
-            "new-check": True,
-            "no-data": None,
-        }
-        result = state.detect_transitions(TRANSITION_PREVIOUS, current, NOW)
-        assert sorted(result, key=lambda t: t["key"]) == [
-            {"key": "came-up", "kind": "closed", "at": "2026-08-14T12:00:00Z"},
-            {"key": "went-down", "kind": "opened", "at": "2026-08-14T12:00:00Z"},
-        ]
+    def test_an_outage_is_stamped_at_its_first_failing_sample(self):
+        # Confirmed on the third failure; it began on the first.
+        result = state.confirmed_transitions(self.series([1, 1, 0, 0, 0]), 3, 0.5, True)
+        assert result == [{"kind": "opened", "at": "1970-01-01T00:10:00Z"}]
+
+    def test_recovery_closes_at_the_first_good_sample(self):
+        result = state.confirmed_transitions(self.series([0, 0, 0, 1, 1, 1]), 3, 0.5, False)
+        assert result == [{"kind": "closed", "at": "1970-01-01T00:15:00Z"}]
+
+    def test_a_single_failure_is_not_an_outage(self):
+        assert state.confirmed_transitions(self.series([1, 1, 0, 1, 1]), 3, 0.5, True) == []
+
+    def test_an_unknown_starting_point_is_no_transition(self):
+        """Absence of data is never downtime, on either side."""
+        assert state.confirmed_transitions(self.series([0, 0, 0]), 3, 0.5, None) == []
+
+    def test_too_few_samples_to_judge_yields_nothing(self):
+        assert state.confirmed_transitions(self.series([0]), 3, 0.5, True) == []
+
+    def test_a_quorum_absorbs_one_unhappy_probe_location(self):
+        """Two of three locations reporting success is still up at 0.5."""
+        two_thirds = [1.0, 1.0, 2 / 3, 2 / 3, 2 / 3]
+        assert state.confirmed_transitions(self.series(two_thirds), 3, 0.5, True) == []
+
+    def test_an_empty_series_is_no_transition(self):
+        assert state.confirmed_transitions([], 3, 0.5, True) == []
 
 
 class TestAssemble:

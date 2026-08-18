@@ -94,15 +94,25 @@ turns red before it ships.
 
 One DynamoDB table, three item kinds:
 
-- `SITE / LATEST` — the last real observation per check; overwritten by
-  every non-degraded run. It is both the render fallback and the previous
-  state for transition detection.
-- `CHECK#<key> / DAY#<date>` — daily rollups, folded with an atomic `ADD`
-  so retries cannot double-count. The 24-hour sparkline comes from
-  Prometheus at render time; DynamoDB holds only distilled daily numbers.
-- `CHECK#<key> / OUTAGE#<started_at>` — written on transition, closed on
-  recovery. The data *is* the incident log: daily ratios cannot show a
-  twenty-minute outage.
+- `SITE / LATEST` — the last real observation per check, plus how far the
+  series has been read. It is the render fallback, and the watermark is
+  where the next run resumes.
+- `CHECK#<key> / DAY#<date>` — daily rollups, recomputed from Prometheus
+  rather than incremented, so a retry cannot double-count what it
+  recalculates. Days are the site's own, not UTC's. The 24-hour sparkline
+  comes from Prometheus at render time; DynamoDB holds only distilled
+  daily numbers.
+- `CHECK#<key> / OUTAGE#<started_at>` — found by walking the success series
+  rather than by comparing one run against the last, so an outage survives
+  the renderer having been down and carries a probe's timestamp instead of
+  a render's. Keyed by the moment it started, which is what makes
+  re-reading the series free. The data *is* the incident log: daily ratios
+  cannot show a twenty-minute outage.
+
+Prometheus is the source of truth for what happened; the table is the
+durable record of it. The plan this runs on keeps a fortnight of metrics
+and the page shows ninety days, so the copy is not a hedge against the
+vendor — it is the only place the history can live.
 
 TTL on `expires_at` reclaims rollups and outages in the background. Raw
 per-probe metrics live in Grafana Cloud's Prometheus, managed by them.

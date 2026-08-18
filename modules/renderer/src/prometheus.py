@@ -71,6 +71,42 @@ def _request(credentials: dict, path: str, params: dict) -> dict:
         raise PrometheusError(f"{path}: {error}") from error
 
 
+SUCCESS_FRACTION = (
+    "sum by (job) (probe_success{selector}) / count by (job) (probe_success{selector})"
+)
+
+
+def fraction_query(jobs: list[str]) -> str:
+    """The share of probe locations reporting success, per instant. The
+    verdict window is applied over these in the renderer rather than in
+    PromQL, because an incident is timestamped from the first failing
+    sample and a windowed expression has already lost it."""
+    selector = f'{{job=~"^({"|".join(sorted(jobs))})$"}}'
+    return SUCCESS_FRACTION.format(selector=selector)
+
+
+def day_totals_queries(jobs: list[str], elapsed_seconds: int) -> tuple[str, str]:
+    """(executions, successes) so far in the day, for the rollup. Recomputed
+    from the source rather than incremented, so a retry cannot double-count
+    what it recalculates."""
+    selector = f'probe_success{{job=~"^({"|".join(sorted(jobs))})$"}}'
+    window = f"[{elapsed_seconds}s]"
+    return (
+        f"sum by (job) (count_over_time({selector}{window}))",
+        f"sum by (job) (sum_over_time({selector}{window}))",
+    )
+
+
+def series(credentials: dict, query: str, start: datetime, end: datetime, step: int) -> dict:
+    """A range query at an explicit step, for walking samples over time."""
+    response = _request(
+        credentials,
+        "/api/v1/query_range",
+        {"query": query, "start": _epoch(start), "end": _epoch(end), "step": step},
+    )
+    return parse_matrix(response)
+
+
 def instant(credentials: dict, query: str, now: datetime) -> dict[str, float]:
     response = _request(credentials, "/api/v1/query", {"query": query, "time": _epoch(now)})
     return parse_vector(response)

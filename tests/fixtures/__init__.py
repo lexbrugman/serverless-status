@@ -100,6 +100,34 @@ def _range_series(mani: dict, now: datetime, slow_api: bool) -> dict:
     return series
 
 
+def _success_series(mani: dict, now: datetime, down: set[str]) -> dict:
+    """Twelve per-instant success fractions per check, ending now. A down
+    check has been failing for the last four of them, which is long enough
+    for the verdict window to have confirmed it."""
+    series = {}
+    for key, check in mani["checks"].items():
+        step = _frequency_minutes(check) * 60
+        points = []
+        for i in range(12):
+            ts = _ts(now) - (11 - i) * step
+            points.append((ts, 0.0 if key in down and i >= 8 else 1.0))
+        series[key] = points
+    return series
+
+
+def _day_totals(mani: dict, now: datetime, down: set[str]) -> tuple[dict, dict]:
+    """Executions and successes so far today, as Prometheus would count
+    them — the rollup is recomputed from these rather than incremented."""
+    elapsed = now.hour * 3600 + now.minute * 60
+    samples, successes = {}, {}
+    for key, check in mani["checks"].items():
+        per_day = SAMPLES_PER_DAY[check["type"]]
+        count = max(1, int(per_day * elapsed / 86400))
+        samples[key] = float(count)
+        successes[key] = float(max(0, count - (4 if key in down else 0)))
+    return samples, successes
+
+
 def _rollups(mani: dict, now: datetime, ongoing: dict[str, int]) -> dict:
     """~120 days of daily rows per check; the assembly trims to history_days."""
     failed_days = {(key, ago): failures for key, ago, failures in HISTORY_OUTAGES}
@@ -107,7 +135,6 @@ def _rollups(mani: dict, now: datetime, ongoing: dict[str, int]) -> dict:
     for key, check in mani["checks"].items():
         rng = random.Random(f"rollup:{key}")
         per_day = SAMPLES_PER_DAY[check["type"]]
-        base_ms = BASE_LATENCY_SECONDS[key] * 1000
         rows = []
         for ago in range(120, -1, -1):
             day = now.date() - timedelta(days=ago)
@@ -123,14 +150,11 @@ def _rollups(mani: dict, now: datetime, ongoing: dict[str, int]) -> dict:
             if ago == 0:
                 failures += ongoing.get(key, 0)
                 failures = min(failures, samples)
-            mean = base_ms * rng.uniform(0.95, 1.1)
             rows.append(
                 {
                     "date": day.isoformat(),
                     "samples": samples,
                     "successes": samples - failures,
-                    "latency_sum": round(mean * samples),
-                    "latency_max": round(mean * rng.uniform(2.5, 6.0)),
                 }
             )
         rollups[key] = rows
@@ -203,10 +227,14 @@ def load(name: str, now: datetime) -> dict:
 
     prometheus = None
     if name != "stale-cache":
+        day_samples, day_successes = _day_totals(mani, now, down)
         prometheus = {
             "success": _vector(success, now),
             "duration": _vector(duration, now),
             "duration_range": _matrix(_range_series(mani, now, slow_api)),
+            "success_series": _matrix(_success_series(mani, now, down)),
+            "day_samples": _vector(day_samples, now),
+            "day_successes": _vector(day_successes, now),
         }
 
     return {
