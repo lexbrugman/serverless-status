@@ -46,9 +46,26 @@ class TestPayload:
         lines = report.payload(1, {"b": True, "a": False}).splitlines()
         assert lines == [
             "status_page rendered_timestamp=1",
-            "status_page,job=a observed=0",
-            "status_page,job=b observed=1",
+            "status_page,job=a check_observed=0",
+            "status_page,job=b check_observed=1",
         ]
+
+
+class TestMetricNames:
+    """Influx names a metric <measurement>_<field>, so the field spelling is
+    the metric the alert rules query. A rule naming something nothing
+    publishes returns no data forever, and no-data on the not-reporting
+    rule is deliberately not an alert — so the mismatch would be silent.
+    scripts/check-cross-layer.py pins these against the rules themselves."""
+
+    def test_the_names_prometheus_will_see(self):
+        assert report.metric_name(report.HEARTBEAT_FIELD) == "status_page_rendered_timestamp"
+        assert report.metric_name(report.OBSERVED_FIELD) == "status_page_check_observed"
+
+    def test_the_payload_uses_those_fields(self):
+        lines = report.payload(1, {"a": True}).splitlines()
+        assert lines[0].split()[1].startswith(f"{report.HEARTBEAT_FIELD}=")
+        assert lines[1].split()[1].startswith(f"{report.OBSERVED_FIELD}=")
 
 
 class TestWriteUrl:

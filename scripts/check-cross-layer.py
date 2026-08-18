@@ -69,6 +69,18 @@ DOWN_DEFAULTS = [
         r"down_quorum = ([0-9.]+)",
     ),
 ]
+# The renderer publishes metrics through Influx, which names them
+# <measurement>_<field>; the alert rules query those names as literals.
+# A rule naming a metric nothing publishes returns no data forever, and
+# no-data on the not-reporting rule is deliberately not an alert — so the
+# mismatch is silent, and this is what makes it loud.
+METRIC_SOURCE = "modules/renderer/src/report.py"
+METRIC_RULES = "modules/alerting/main.tf"
+METRIC_FIELDS = [
+    (r'HEARTBEAT_FIELD = "([a-z_]+)"', "the heartbeat metric"),
+    (r'OBSERVED_FIELD = "([a-z_]+)"', "the per-check metric"),
+]
+
 DOWN_MODULE = "modules/renderer/variables.tf"
 DOWN_ROOT = "template/tofu/main.tf"
 
@@ -136,6 +148,16 @@ def main() -> None:
             failures.append(
                 f"{DOWN_ROOT}: {name} resolves to {resolved}, "
                 f"{DOWN_MODULE} defaults it to {declared}"
+            )
+
+    measurement = extract(METRIC_SOURCE, r'MEASUREMENT = "([a-z_]+)"', "the Influx measurement")
+    rules = (ROOT / METRIC_RULES).read_text()
+    for pattern, description in METRIC_FIELDS:
+        published = f"{measurement}_{extract(METRIC_SOURCE, pattern, description)}"
+        if published not in rules:
+            failures.append(
+                f"{METRIC_RULES}: no rule queries {published}, which is what "
+                f"{METRIC_SOURCE} publishes for {description}"
             )
 
     if failures:

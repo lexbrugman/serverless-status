@@ -15,7 +15,18 @@ import urllib.parse
 import urllib.request
 
 MEASUREMENT = "status_page"
+# Influx names a Prometheus metric <measurement>_<field>, so the field is
+# what the alert rules have to be written against. Pinned to them by
+# scripts/check-cross-layer.py: a rule querying a name nothing publishes
+# returns no data, and no-data on that rule is deliberately not an alert.
+HEARTBEAT_FIELD = "rendered_timestamp"
+OBSERVED_FIELD = "check_observed"
 WRITE_PATH = "/api/v1/push/influx/write"
+
+
+def metric_name(field: str) -> str:
+    """What Prometheus will call this field once Influx has ingested it."""
+    return f"{MEASUREMENT}_{field}"
 
 
 def payload(rendered_at: int, observed: dict[str, bool] | None) -> str:
@@ -23,9 +34,9 @@ def payload(rendered_at: int, observed: dict[str, bool] | None) -> str:
     something to observe. A degraded run reached nothing, and reporting
     that as 'no check is publishing' would turn one Grafana outage into an
     alert per check."""
-    lines = [f"{MEASUREMENT} rendered_timestamp={rendered_at}"]
+    lines = [f"{MEASUREMENT} {HEARTBEAT_FIELD}={rendered_at}"]
     for job in sorted(observed or {}):
-        lines.append(f"{MEASUREMENT},job={job} observed={1 if observed[job] else 0}")
+        lines.append(f"{MEASUREMENT},job={job} {OBSERVED_FIELD}={1 if observed[job] else 0}")
     return "\n".join(lines)
 
 
