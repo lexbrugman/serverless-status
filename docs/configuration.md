@@ -64,6 +64,15 @@ contradictory at worst; string-parsing a URL back apart is not validation.
 Every invalid combination is rejected at plan time with a message that
 states the fix.
 
+A key nothing declares is rejected too, at every level of the file
+including inside lists and maps. This matters more than it sounds:
+OpenTofu discards an attribute no type declares, silently, so
+`latency_budget` where the field is `latency_budget_ms` would otherwise
+give you a check with no budget and no complaint. Nothing maintains a list
+of allowed keys — the check reads the type constraints out of the plan and
+walks your file against them, so a field added upstream is known the moment
+it exists.
+
 The checks module enforces each account's declared monthly execution
 budget as a plan-time precondition — an over-budget check set fails the
 plan naming the largest consumers — and reads the tenant's check quota from

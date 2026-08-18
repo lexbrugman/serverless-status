@@ -8,12 +8,10 @@ locals {
   # this, so a typo in the file surfaces here rather than four layers down.
   config = yamldecode(file("${path.root}/../config.yaml"))
 
-  # Alerting is optional and its shape is stated once here, so an instance
-  # that never mentions it reads the same as one that switched it off.
-  alerting = merge(
-    { email_addresses = [] },
-    try(local.config.alerting, {}),
-  )
+  # Alerting is optional; wiring/config declares its shape and applies the
+  # default, so an instance that never mentions it reads the same as one
+  # that switched it off.
+  alerting = module.config.alerting
 
   # What "down" means, resolved once here because two consumers need the
   # identical answer: the renderer's own query and the alert rule. The
@@ -36,6 +34,15 @@ locals {
   page_source = try(regex("\"github.com/([^/]*/[^/]*)//modules/", file("${path.root}/page.tf"))[0], null)
 }
 
+# Declares the two levels of config.yaml no other module types, so every
+# part of the file has a declaration bin/ci-check-config.py can read.
+module "config" {
+  source = "./wiring/config"
+
+  alerting     = try(local.config.alerting, {})
+  grafana_orgs = local.config.grafana_orgs
+}
+
 module "routing" {
   source = "./wiring/routing"
 
@@ -48,6 +55,15 @@ module "ci" {
 
   github_repository = var.github_repository
   state_bucket      = local.state_bucket
+}
+
+# The file exactly as it was read, so the unknown-key check can compare it
+# against the type constraints in the same plan JSON. Emitted rather than
+# re-parsed: a second reader of config.yaml is a second answer to what it
+# says.
+output "config_as_read" {
+  description = "config.yaml as yamldecode returned it, for bin/ci-check-config.py."
+  value       = local.config
 }
 
 output "plan_role_arn" {
