@@ -86,7 +86,9 @@ provider "grafana" {
 # The ref is stamped from the release you cloned; see docs/setup-guide.md.
 module "alerting_example" {
   source = "github.com/lexbrugman/serverless-status//modules/alerting?ref=master"
-  count  = length(local.alerting.email_addresses) > 0 && length(module.routing.org_alert_jobs["example"]) > 0 ? 1 : 0
+  # Created whenever there is anything to watch at all: a check that opted
+  # out of down-alerting is still one nobody wants silently unmonitored.
+  count = length(local.alerting.email_addresses) > 0 && length(module.checks_example.check_manifest.checks) > 0 ? 1 : 0
 
   providers = {
     grafana.stack = grafana.example_stack
@@ -96,11 +98,12 @@ module "alerting_example" {
   # Frequencies come from the resolved manifest, not from the config file:
   # a check that states none still runs at its type's default, and the
   # window a verdict is made over is a multiple of whatever it actually is.
-  jobs = [
+  down_jobs = [
     for key, check in module.checks_example.check_manifest.checks :
     { key = key, frequency_minutes = check.frequency_minutes }
     if contains(module.routing.org_alert_jobs["example"], key)
   ]
+  reporting_jobs       = keys(module.checks_example.check_manifest.checks)
   prometheus           = module.checks_example.prometheus
   email_addresses      = local.alerting.email_addresses
   down_window_multiple = local.page.down_window_multiple

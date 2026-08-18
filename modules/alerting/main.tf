@@ -7,14 +7,17 @@
 locals {
   # One rule, one alert instance per job: Grafana's alerting is
   # multi-dimensional, so a rule per check would be N copies of one idea.
-  job_keys    = sort([for job in var.jobs : job.key])
-  job_pattern = "^(${join("|", local.job_keys)})$"
+  # Two audiences: the down rules watch what asked to be paged about, the
+  # not-reporting rule watches everything, because a check that stopped
+  # running is a failure of the monitoring rather than of the thing.
+  down_pattern      = "^(${join("|", sort([for job in var.down_jobs : job.key]))})$"
+  reporting_pattern = "^(${join("|", sort(var.reporting_jobs))})$"
 
   # One rule per probe interval. The window that turns samples into a
   # verdict is a multiple of that interval, so checks running at different
   # rates cannot share one without the slower being judged on fewer
   # samples than the faster.
-  by_frequency = { for job in var.jobs : tostring(job.frequency_minutes) => job.key... }
+  by_frequency = { for job in var.down_jobs : tostring(job.frequency_minutes) => job.key... }
 
   # One late probe is tolerated; below that there is not enough in the
   # window to judge. Mirrors prometheus.up_query in the renderer — the two
@@ -53,14 +56,9 @@ locals {
 # is still validated, and a rule that matches nothing or announces to
 # nobody is a mistake worth a plan-time error when it is real.
 resource "terraform_data" "alerting_is_addressed" {
-  input = var.jobs
+  input = var.reporting_jobs
 
   lifecycle {
-    precondition {
-      condition     = length(var.jobs) > 0
-      error_message = "alerting needs at least one check to watch."
-    }
-
     precondition {
       condition     = length(var.email_addresses) > 0
       error_message = "an alert with no recipient is not an alert; give alerting.email_addresses at least one address."
@@ -278,7 +276,7 @@ resource "grafana_rule_group" "down" {
       model = jsonencode({
         refId      = local.query_ref
         editorMode = "code"
-        expr       = "min by (job) (status_page_check_observed{job=~\"${local.job_pattern}\"})"
+        expr       = "min by (job) (status_page_check_observed{job=~\"${local.reporting_pattern}\"})"
         instant    = true
         range      = false
       })

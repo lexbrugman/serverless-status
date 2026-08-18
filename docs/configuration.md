@@ -101,9 +101,9 @@ alerting:
   email_addresses: [ops@example.com]
 ```
 
-Notification is Grafana's job, provisioned from here. Every check alerts
-unless it says `alert: false`, and an alert fires on the same definition of
-down the page uses — so the page and the pager never tell different stories
+Notification is Grafana's job, provisioned from here. Every check pages you
+when it fails unless it says `alert: false`, and an alert fires on the same
+definition of down the page uses — so the page and the pager never tell different stories
 about the same check.
 
 That definition is two numbers under `page`. `down_window_multiple` is how
@@ -123,6 +123,11 @@ sits between a failing probe and the message. Each account gets a folder, a
 contact point, and one multi-dimensional rule that fans out per check.
 Routing is attached to the rule itself, so the stack's notification policy
 tree stays exactly as its owner arranged it.
+
+`alert: false` opts a check out of being paged about when it fails. It does
+not opt it out of being watched: a check that stops reporting raises an
+alert either way, because that is a failure of the monitoring rather than
+of the thing monitored, and it is the one nobody notices unaided.
 
 Two more rules cover the failures a down-check rule cannot see. The
 renderer publishes the moment of its last successful run, and an alert

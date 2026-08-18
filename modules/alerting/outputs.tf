@@ -4,6 +4,9 @@ output "contact_point" {
 }
 
 output "alerting_jobs" {
-  description = "The check identities this rule covers, for eyeballing against the page."
-  value       = var.jobs
+  description = "What each rule covers, for eyeballing against the page: the checks a failure pages about, and every check watched for going quiet."
+  value = {
+    down      = sort([for job in var.down_jobs : job.key])
+    reporting = sort(var.reporting_jobs)
+  }
 }

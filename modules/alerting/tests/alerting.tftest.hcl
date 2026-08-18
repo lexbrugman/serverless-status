@@ -8,9 +8,15 @@ mock_provider "grafana" {
 
 variables {
   name = "examplecorp"
-  jobs = [
+  down_jobs = [
     { key = "api-example-com-https", frequency_minutes = 5 },
     { key = "mx1-example-com-smtp", frequency_minutes = 5 },
+  ]
+  # One more than the down list: gw-example-com-ping said alert: false.
+  reporting_jobs = [
+    "api-example-com-https",
+    "mx1-example-com-smtp",
+    "gw-example-com-ping",
   ]
   email_addresses      = ["ops@example.com"]
   down_window_multiple = 3
@@ -132,12 +138,35 @@ run "an_unaddressed_alert_fails_the_plan" {
   expect_failures = [terraform_data.alerting_is_addressed]
 }
 
-run "alerting_without_checks_fails_the_plan" {
+run "alerting_watching_nothing_fails_the_plan" {
   command = plan
 
   variables {
-    jobs = []
+    reporting_jobs = []
   }
 
-  expect_failures = [terraform_data.alerting_is_addressed]
+  expect_failures = [var.reporting_jobs]
+}
+
+run "opting_out_of_paging_does_not_opt_out_of_being_watched" {
+  command = plan
+
+  # alert: false says a failure of the thing is not worth a page. It does
+  # not say a failure of the monitoring is, and a check nobody is running
+  # is the second.
+  assert {
+    condition = !strcontains(
+      jsondecode(grafana_rule_group.down.rule[0].data[0].model).expr,
+      "gw-example-com-ping"
+    )
+    error_message = "a check that opted out must not be paged about when it fails"
+  }
+
+  assert {
+    condition = strcontains(
+      jsondecode(grafana_rule_group.down.rule[2].data[0].model).expr,
+      "gw-example-com-ping"
+    )
+    error_message = "every check is watched for going quiet, opted out or not"
+  }
 }

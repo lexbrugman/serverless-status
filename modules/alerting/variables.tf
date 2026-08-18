@@ -3,12 +3,22 @@ variable "name" {
   type        = string
 }
 
-variable "jobs" {
-  description = "Checks to alert on: the Prometheus job label, which is the check key, and how often it runs. The frequency is what sizes the window a verdict is made over, so it travels with the job rather than being assumed."
+variable "down_jobs" {
+  description = "Checks to alert on when they fail: the Prometheus job label, which is the check key, and how often it runs. The frequency is what sizes the window a verdict is made over, so it travels with the job rather than being assumed. A check with alert: false is absent here."
   type = list(object({
     key               = string
     frequency_minutes = number
   }))
+}
+
+variable "reporting_jobs" {
+  description = "Every check the renderer reports on, including those that opted out of down-alerting. Opting out says a failure of the thing is not worth a page; it does not say a failure of the monitoring is, and a check nobody is running is the second."
+  type        = list(string)
+
+  validation {
+    condition     = length(var.reporting_jobs) > 0
+    error_message = "alerting needs at least one check to watch."
+  }
 }
 
 variable "prometheus" {
