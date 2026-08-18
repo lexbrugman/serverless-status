@@ -90,13 +90,23 @@ account's execution allowance.
 ```yaml
 alerting:
   email_addresses: [ops@example.com]
-  down_for_minutes: 5
 ```
 
 Notification is Grafana's job, provisioned from here. Every check alerts
-unless it says `alert: false`; an alert fires when `probe_success` has been
-below 1 for `down_for_minutes`, and resolves when it comes back. Leave
-`email_addresses` empty and no alerting is created at all.
+unless it says `alert: false`, and an alert fires on the same definition of
+down the page uses — so the page and the pager never tell different stories
+about the same check.
+
+That definition is two numbers under `page`. `down_window_multiple` is how
+many probe intervals a verdict is made over; `down_quorum` is the share of
+the executions in that window that must have succeeded. Counting executions
+rather than minutes is what makes it a debounce: a wall-clock wait shorter
+than the probe interval re-reads one sample, so it delays the alert without
+ever requiring a second failure. Below 1, the quorum also absorbs a single
+unhappy probe location, which is why Grafana recommends running alerting
+checks from several.
+
+Leave `email_addresses` empty and no alerting is created at all.
 
 The rules live in the stack, not in this stack's own AWS: an outage that
 takes the renderer down still reaches a mailbox, because nothing of ours
@@ -134,6 +144,8 @@ page:                     # all optional, defaults shown
   outage_log_days: 30     # reach of the derived incident list
   retention_days: 400     # DynamoDB TTL horizon
   refresh_seconds: 60     # meta-refresh and staleness threshold
+  down_window_multiple: 3 # a verdict is made over this many probe intervals
+  down_quorum: 0.5        # the share of those executions that must succeed
 ```
 
 A page cannot promise more history than the table keeps:

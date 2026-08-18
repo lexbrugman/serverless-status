@@ -92,11 +92,19 @@ module "alerting_example" {
     grafana.stack = grafana.example_stack
   }
 
-  name             = local.config.grafana_orgs["example"].stack_slug
-  jobs             = module.routing.org_alert_jobs["example"]
-  prometheus       = module.checks_example.prometheus
-  email_addresses  = local.alerting.email_addresses
-  down_for_minutes = local.alerting.down_for_minutes
+  name = local.config.grafana_orgs["example"].stack_slug
+  # Frequencies come from the resolved manifest, not from the config file:
+  # a check that states none still runs at its type's default, and the
+  # window a verdict is made over is a multiple of whatever it actually is.
+  jobs = [
+    for key, check in module.checks_example.check_manifest.checks :
+    { key = key, frequency_minutes = check.frequency_minutes }
+    if contains(module.routing.org_alert_jobs["example"], key)
+  ]
+  prometheus           = module.checks_example.prometheus
+  email_addresses      = local.alerting.email_addresses
+  down_window_multiple = local.page.down_window_multiple
+  down_quorum          = local.page.down_quorum
 }
 
 # What this account's checks will spend in a 30-day month, from their

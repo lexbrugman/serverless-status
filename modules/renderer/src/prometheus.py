@@ -12,14 +12,42 @@ import urllib.parse
 import urllib.request
 from datetime import UTC, datetime, timedelta
 
-# The lookback window for "current" state.
+# The lookback window for the latency reading, which wants the most recent
+# value rather than a verdict over time.
 WINDOW = "15m"
 
-INSTANT_SUCCESS = f"max by (job) (last_over_time(probe_success[{WINDOW}]))"
 INSTANT_DURATION = f"max by (job) (last_over_time(probe_duration_seconds[{WINDOW}]))"
 RANGE_DURATION = "avg by (job) (probe_duration_seconds)"
 RANGE_STEP_SECONDS = 900
 RANGE_HOURS = 24
+
+
+def up_query(jobs: list[str], frequency_minutes: int, window_multiple: int, quorum: float) -> str:
+    """The one definition of up, shared with the alert rule.
+
+    The share of probe executions in the window that succeeded, against a
+    quorum — so a single failed probe is not an outage, and one unhappy
+    probe location out of several is not either. Counting executions rather
+    than evaluations is what makes it a debounce: a pending period shorter
+    than the probe interval only delays, it never requires a second
+    failure.
+
+    `bool` is load-bearing. Without it a comparison filters rather than
+    returning 0, and a check that is down becomes indistinguishable from
+    one nobody heard from. The trailing `and` drops a job with too few
+    samples to judge, which leaves it unknown rather than guessing.
+    """
+    window = frequency_minutes * window_multiple
+    # One late probe is tolerated; below that there is not enough in the
+    # window to judge, and guessing is what a debounce exists to avoid.
+    min_samples = max(1, window_multiple - 1)
+    selector = f'probe_success{{job=~"^({"|".join(sorted(jobs))})$"}}'
+    ratio = (
+        f"sum by (job) (sum_over_time({selector}[{window}m]))"
+        f" / sum by (job) (count_over_time({selector}[{window}m]))"
+    )
+    enough = f"sum by (job) (count_over_time({selector}[{window}m])) >= {min_samples}"
+    return f"({ratio} >= bool {quorum}) and ({enough})"
 
 
 class PrometheusError(Exception):

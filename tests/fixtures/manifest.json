@@ -17,7 +17,9 @@
     "history_days": 90,
     "outage_log_days": 30,
     "retention_days": 400,
-    "refresh_seconds": 60
+    "refresh_seconds": 60,
+    "down_window_multiple": 3,
+    "down_quorum": 0.5
   },
   "checks": {
     "website": {
@@ -28,7 +30,8 @@
       "port": 443,
       "path": "/",
       "order": 10,
-      "latency_budget_ms": null
+      "latency_budget_ms": null,
+      "frequency_minutes": 5
     },
     "api": {
       "display": "API",
@@ -38,7 +41,8 @@
       "port": 443,
       "path": "/health",
       "order": 20,
-      "latency_budget_ms": 800
+      "latency_budget_ms": 800,
+      "frequency_minutes": 5
     },
     "docs": {
       "display": "Documentation",
@@ -48,7 +52,8 @@
       "port": 443,
       "path": "/",
       "order": 30,
-      "latency_budget_ms": null
+      "latency_budget_ms": null,
+      "frequency_minutes": 5
     },
     "mail-inbound": {
       "display": "Inbound mail (MX 1)",
@@ -58,7 +63,8 @@
       "port": 25,
       "path": null,
       "order": 40,
-      "latency_budget_ms": null
+      "latency_budget_ms": null,
+      "frequency_minutes": 5
     },
     "mail-inbound-backup": {
       "display": "Inbound mail (MX 2)",
@@ -68,7 +74,8 @@
       "port": 25,
       "path": null,
       "order": 50,
-      "latency_budget_ms": null
+      "latency_budget_ms": null,
+      "frequency_minutes": 5
     },
     "webmail": {
       "display": "Webmail",
@@ -78,7 +85,8 @@
       "port": 443,
       "path": "/",
       "order": 60,
-      "latency_budget_ms": null
+      "latency_budget_ms": null,
+      "frequency_minutes": 5
     },
     "office-uplink": {
       "display": "Office connectivity",
@@ -88,7 +96,8 @@
       "port": null,
       "path": null,
       "order": 70,
-      "latency_budget_ms": null
+      "latency_budget_ms": null,
+      "frequency_minutes": 10
     },
     "dns": {
       "display": "Primary DNS",
@@ -98,7 +107,8 @@
       "port": null,
       "path": null,
       "order": 80,
-      "latency_budget_ms": null
+      "latency_budget_ms": null,
+      "frequency_minutes": 10
     },
     "vpn": {
       "display": "VPN portal",
@@ -108,7 +118,8 @@
       "port": 443,
       "path": "/",
       "order": 90,
-      "latency_budget_ms": null
+      "latency_budget_ms": null,
+      "frequency_minutes": 5
     }
   }
 }

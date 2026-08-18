@@ -4,8 +4,11 @@ variable "name" {
 }
 
 variable "jobs" {
-  description = "Check identities to alert on — the Prometheus job labels, which are the check keys."
-  type        = list(string)
+  description = "Checks to alert on: the Prometheus job label, which is the check key, and how often it runs. The frequency is what sizes the window a verdict is made over, so it travels with the job rather than being assumed."
+  type = list(object({
+    key               = string
+    frequency_minutes = number
+  }))
 }
 
 variable "prometheus" {
@@ -23,12 +26,22 @@ variable "email_addresses" {
   type        = list(string)
 }
 
-variable "down_for_minutes" {
-  description = "How long a check stays failing before the alert fires. Long enough to outlast a single missed probe, short enough to matter."
+variable "down_window_multiple" {
+  description = "How many probe intervals the verdict is made over. Counted in executions rather than wall-clock minutes: a pending period shorter than the probe interval only delays the page, it never requires a second failure."
   type        = number
 
   validation {
-    condition     = var.down_for_minutes >= 1
-    error_message = "down_for_minutes must be at least 1."
+    condition     = var.down_window_multiple >= 2
+    error_message = "down_window_multiple must be at least 2 — a window of one probe interval cannot require a second failure, which is the whole point of it."
+  }
+}
+
+variable "down_quorum" {
+  description = "The share of probe executions in the window that must have succeeded for a check to count as up. Below 1 it also absorbs a single unhappy probe location, which is why Grafana recommends running alerting checks from several."
+  type        = number
+
+  validation {
+    condition     = var.down_quorum > 0 && var.down_quorum <= 1
+    error_message = "down_quorum is a share of probe executions, so it lies in (0, 1]."
   }
 }

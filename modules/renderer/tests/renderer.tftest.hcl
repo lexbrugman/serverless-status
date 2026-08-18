@@ -66,7 +66,7 @@ variables {
 
   check_manifests = [
     {
-      schema_version = 2
+      schema_version = 3
       checks = {
         website = {
           display           = "Website"
@@ -77,6 +77,7 @@ variables {
           path              = "/"
           order             = 10
           latency_budget_ms = null
+          frequency_minutes = 5
         }
       }
     },
@@ -160,8 +161,8 @@ run "colliding_check_keys_fail_the_plan" {
 
   variables {
     check_manifests = [
-      { schema_version = 2, checks = { website = { group = "Web", order = 10 } } },
-      { schema_version = 2, checks = { website = { group = "Web", order = 10 } } },
+      { schema_version = 3, checks = { website = { group = "Web", order = 10 } } },
+      { schema_version = 3, checks = { website = { group = "Web", order = 10 } } },
     ]
   }
 

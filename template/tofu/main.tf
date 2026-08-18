@@ -11,8 +11,17 @@ locals {
   # Alerting is optional and its shape is stated once here, so an instance
   # that never mentions it reads the same as one that switched it off.
   alerting = merge(
-    { email_addresses = [], down_for_minutes = 5 },
+    { email_addresses = [] },
     try(local.config.alerting, {}),
+  )
+
+  # What "down" means, resolved once here because two consumers need the
+  # identical answer: the renderer's own query and the alert rule. The
+  # defaults mirror modules/renderer's `page` variable and are pinned to it
+  # by scripts/check-cross-layer.py.
+  page = merge(
+    { down_window_multiple = 3, down_quorum = 0.5 },
+    try(local.config.page, {}),
   )
 
   # The version in the page footer is the release the modules are pinned to,

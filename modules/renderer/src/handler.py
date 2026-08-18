@@ -78,7 +78,18 @@ def publish(documents: dict[str, str]) -> None:
         )
 
 
-def query_metrics(now: datetime) -> tuple[dict | None, dict | None, dict | None, bool]:
+def frequency_groups(mani: dict) -> dict[int, list[str]]:
+    """Checks grouped by how often they run. The window that turns samples
+    into a verdict is a multiple of the probe interval, so checks on
+    different intervals cannot share one query without the slower ones
+    being judged on fewer samples than the faster."""
+    groups: dict[int, list[str]] = {}
+    for key, check in mani["checks"].items():
+        groups.setdefault(check["frequency_minutes"], []).append(key)
+    return groups
+
+
+def query_metrics(mani: dict, now: datetime) -> tuple[dict | None, dict | None, dict | None, bool]:
     """(success, duration, duration_range, degraded), merged across every
     source by job. Any failure anywhere yields the fully degraded render —
     never a 500, never stale green presented as current, and never history
@@ -87,8 +98,13 @@ def query_metrics(now: datetime) -> tuple[dict | None, dict | None, dict | None,
     duration: dict = {}
     duration_range: dict = {}
     try:
+        page = mani["page"]
         for source in prometheus_sources():
-            success.update(prometheus.instant(source, prometheus.INSTANT_SUCCESS, now))
+            for frequency, jobs in frequency_groups(mani).items():
+                query = prometheus.up_query(
+                    jobs, frequency, page["down_window_multiple"], page["down_quorum"]
+                )
+                success.update(prometheus.instant(source, query, now))
             duration.update(prometheus.instant(source, prometheus.INSTANT_DURATION, now))
             duration_range.update(prometheus.latency_range(source, now))
         return success, duration, duration_range, False
@@ -155,7 +171,7 @@ def render_handler(event, context):
     tbl = store.table(os.environ["TABLE_NAME"], os.environ.get("DDB_ENDPOINT"))
 
     previous = store.get_latest(tbl)
-    success, duration, duration_range, degraded = query_metrics(now)
+    success, duration, duration_range, degraded = query_metrics(mani, now)
     if not degraded:
         record_history(tbl, mani, previous, success, duration, now)
     rollups, outage_records = read_history(tbl, mani, now)

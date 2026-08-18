@@ -1,7 +1,7 @@
 output "check_manifest" {
   description = "This stack's checks, resolved, for the renderer — the seam between the modules. A page can merge several stacks' manifests, one per Grafana account. schema_version exists so a half-merged ref bump fails at plan time, not as a baffling runtime error."
   value = {
-    schema_version = 2
+    schema_version = 3
     checks = { for k, c in var.checks : k => {
       display           = c.display
       group             = c.group
@@ -11,6 +11,9 @@ output "check_manifest" {
       path              = contains(["https", "http"], c.type) ? coalesce(c.path, "/") : null
       order             = c.order
       latency_budget_ms = c.latency_budget_ms
+      # The renderer turns samples into a verdict over a window that is a
+      # multiple of this, so it has to know it.
+      frequency_minutes = coalesce(c.frequency_minutes, local.freq_default[c.type])
     } }
   }
 }

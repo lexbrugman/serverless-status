@@ -7,7 +7,34 @@
 locals {
   # One rule, one alert instance per job: Grafana's alerting is
   # multi-dimensional, so a rule per check would be N copies of one idea.
-  job_pattern = "^(${join("|", var.jobs)})$"
+  job_keys    = sort([for job in var.jobs : job.key])
+  job_pattern = "^(${join("|", local.job_keys)})$"
+
+  # One rule per probe interval. The window that turns samples into a
+  # verdict is a multiple of that interval, so checks running at different
+  # rates cannot share one without the slower being judged on fewer
+  # samples than the faster.
+  by_frequency = { for job in var.jobs : tostring(job.frequency_minutes) => job.key... }
+
+  # One late probe is tolerated; below that there is not enough in the
+  # window to judge. Mirrors prometheus.up_query in the renderer — the two
+  # are pinned to the same literal by tests on both sides.
+  min_samples = max(1, var.down_window_multiple - 1)
+
+  selectors = { for frequency, keys in local.by_frequency :
+    frequency => "probe_success{job=~\"^(${join("|", sort(keys))})$\"}"
+  }
+
+  windows = { for frequency, keys in local.by_frequency :
+    frequency => tonumber(frequency) * var.down_window_multiple
+  }
+
+  up_expr = { for frequency, keys in local.by_frequency : frequency => join("", [
+    "(sum by (job) (sum_over_time(${local.selectors[frequency]}[${local.windows[frequency]}m]))",
+    " / sum by (job) (count_over_time(${local.selectors[frequency]}[${local.windows[frequency]}m]))",
+    " >= bool ${var.down_quorum}) and ",
+    "(sum by (job) (count_over_time(${local.selectors[frequency]}[${local.windows[frequency]}m])) >= ${local.min_samples})",
+  ]) }
 
   query_ref     = "probe"
   threshold_ref = "failing"
@@ -83,71 +110,77 @@ resource "grafana_rule_group" "down" {
   folder_uid       = grafana_folder.alerts.uid
   interval_seconds = 60
 
-  rule {
-    name      = "Check down"
-    condition = local.threshold_ref
-    for       = "${var.down_for_minutes}m"
+  dynamic "rule" {
+    for_each = local.up_expr
 
-    # Silence is a failure too: a check that stops publishing has stopped
-    # being monitored, which is exactly what nobody notices on their own.
-    no_data_state  = "Alerting"
-    exec_err_state = "Alerting"
+    content {
+      name = "Check down (every ${rule.key}m)"
+      # The debounce lives in the query, counted in probe executions, so
+      # there is nothing left for a pending period to add.
+      condition = local.threshold_ref
+      for       = "0s"
 
-    data {
-      ref_id         = local.query_ref
-      datasource_uid = grafana_data_source.metrics.uid
+      # Silence is the other rule's job; alerting on it here would page
+      # once per frequency group as well.
+      no_data_state  = "OK"
+      exec_err_state = "Alerting"
 
-      relative_time_range {
-        from = 600
-        to   = 0
+      data {
+        ref_id         = local.query_ref
+        datasource_uid = grafana_data_source.metrics.uid
+
+        relative_time_range {
+          from = 3600
+          to   = 0
+        }
+
+        model = jsonencode({
+          refId      = local.query_ref
+          editorMode = "code"
+          expr       = rule.value
+          instant    = true
+          range      = false
+        })
       }
 
-      model = jsonencode({
-        refId      = local.query_ref
-        editorMode = "code"
-        expr       = "min by (job) (probe_success{job=~\"${local.job_pattern}\"})"
-        instant    = true
-        range      = false
-      })
-    }
+      data {
+        ref_id         = local.threshold_ref
+        datasource_uid = "__expr__"
 
-    data {
-      ref_id         = local.threshold_ref
-      datasource_uid = "__expr__"
+        relative_time_range {
+          from = 3600
+          to   = 0
+        }
 
-      relative_time_range {
-        from = 600
-        to   = 0
+        model = jsonencode({
+          refId      = local.threshold_ref
+          type       = "threshold"
+          expression = local.query_ref
+          datasource = { type = "__expr__", uid = "__expr__" }
+          conditions = [{
+            evaluator = { type = "lt", params = [1] }
+            operator  = { type = "and" }
+            query     = { params = [local.query_ref] }
+            reducer   = { type = "last", params = [] }
+            type      = "query"
+          }]
+        })
       }
 
-      model = jsonencode({
-        refId      = local.threshold_ref
-        type       = "threshold"
-        expression = local.query_ref
-        datasource = { type = "__expr__", uid = "__expr__" }
-        conditions = [{
-          evaluator = { type = "lt", params = [1] }
-          operator  = { type = "and" }
-          query     = { params = [local.query_ref] }
-          reducer   = { type = "last", params = [] }
-          type      = "query"
-        }]
-      })
-    }
+      labels = {
+        source = "serverless-status"
+      }
 
-    labels = {
-      source = "serverless-status"
-    }
+      annotations = {
+        summary = "{{ $labels.job }} is down: fewer than ${var.down_quorum} of its probe executions succeeded over the last ${var.down_window_multiple} intervals."
+      }
 
-    annotations = {
-      summary = "{{ $labels.job }} has been failing for ${var.down_for_minutes}m."
-    }
-
-    # Routed per rule, so the stack's own notification policy tree is left
-    # exactly as its owner arranged it.
-    notification_settings {
-      contact_point = grafana_contact_point.operators.name
-      group_by      = ["alertname", "job"]
+      # Routed per rule, so the stack's own notification policy tree is
+      # left exactly as its owner arranged it.
+      notification_settings {
+        contact_point = grafana_contact_point.operators.name
+        group_by      = ["alertname", "job"]
+      }
     }
   }
 

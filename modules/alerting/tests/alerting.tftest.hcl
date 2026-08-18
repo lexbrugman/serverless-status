@@ -7,10 +7,14 @@ mock_provider "grafana" {
 }
 
 variables {
-  name             = "examplecorp"
-  jobs             = ["api-example-com-https", "mx1-example-com-smtp"]
-  email_addresses  = ["ops@example.com"]
-  down_for_minutes = 5
+  name = "examplecorp"
+  jobs = [
+    { key = "api-example-com-https", frequency_minutes = 5 },
+    { key = "mx1-example-com-smtp", frequency_minutes = 5 },
+  ]
+  email_addresses      = ["ops@example.com"]
+  down_window_multiple = 3
+  down_quorum          = 0.5
 
   prometheus = {
     query_url = "https://prometheus-prod-01-eu-west-0.grafana.net/api/prom"
@@ -22,12 +26,17 @@ variables {
 run "the_rule_watches_every_alerting_check" {
   command = plan
 
+  # Pinned against prometheus.up_query in the renderer, which builds the
+  # identical string. The page and the pager answer to one definition of
+  # down or they will eventually tell different stories.
   assert {
-    condition = strcontains(
-      jsondecode(grafana_rule_group.down.rule[0].data[0].model).expr,
-      "job=~\"^(api-example-com-https|mx1-example-com-smtp)$\""
-    )
-    error_message = "one rule covers every alerting check; Grafana fans it out per job"
+    condition = jsondecode(grafana_rule_group.down.rule[0].data[0].model).expr == join("", [
+      "(sum by (job) (sum_over_time(probe_success{job=~\"^(api-example-com-https|mx1-example-com-smtp)$\"}[15m]))",
+      " / sum by (job) (count_over_time(probe_success{job=~\"^(api-example-com-https|mx1-example-com-smtp)$\"}[15m]))",
+      " >= bool 0.5) and ",
+      "(sum by (job) (count_over_time(probe_success{job=~\"^(api-example-com-https|mx1-example-com-smtp)$\"}[15m])) >= 2)",
+    ])
+    error_message = "the alert rule and the renderer must ask Prometheus the same question"
   }
 
   assert {
@@ -39,9 +48,13 @@ run "the_rule_watches_every_alerting_check" {
 run "it_fires_only_after_the_configured_wait" {
   command = plan
 
+  # The debounce is counted in probe executions inside the query, so there
+  # is nothing left for a pending period to add. A wall-clock `for` shorter
+  # than the probe interval only delays: it re-reads one sample and never
+  # requires a second failure.
   assert {
-    condition     = grafana_rule_group.down.rule[0].for == "5m"
-    error_message = "a single missed probe must not page anyone"
+    condition     = grafana_rule_group.down.rule[0].for == "0s"
+    error_message = "the wait is a count of executions in the query, not a pending period"
   }
 
   assert {
@@ -52,9 +65,46 @@ run "it_fires_only_after_the_configured_wait" {
     error_message = "the alert condition is probe_success below 1"
   }
 
+  # Silence is a different failure from failure, and it has its own rule.
+  # Alerting on no-data here as well would page once per frequency group
+  # every time the renderer stopped reporting.
   assert {
-    condition     = grafana_rule_group.down.rule[0].no_data_state == "Alerting"
-    error_message = "a check that stopped publishing has stopped being monitored, which must not be silent"
+    condition     = grafana_rule_group.down.rule[0].no_data_state == "OK"
+    error_message = "no-data belongs to the not-reporting rule, not to this one"
+  }
+}
+
+run "silence_and_a_dead_renderer_each_have_their_own_rule" {
+  command = plan
+
+  assert {
+    condition = [for rule in grafana_rule_group.down.rule : rule.name] == [
+      "Check down (every 5m)",
+      "Status page not rendering",
+      "Check not reporting",
+    ]
+    error_message = "one down rule per probe interval, plus the two failures a down rule cannot see"
+  }
+
+  # A check that stops publishing produces no series at all, so nothing
+  # Grafana can ask about probe_success will name it. The renderer holds
+  # the configured set and reports presence; this is what watches that.
+  assert {
+    condition = strcontains(
+      jsondecode(grafana_rule_group.down.rule[2].data[0].model).expr,
+      "status_page_check_observed"
+    )
+    error_message = "silence is detected from what the renderer reports, not from what is missing"
+  }
+
+  assert {
+    condition     = grafana_rule_group.down.rule[2].no_data_state == "OK"
+    error_message = "a dead renderer is the heartbeat rule's to report, once, not once per check"
+  }
+
+  assert {
+    condition     = grafana_rule_group.down.rule[1].no_data_state == "Alerting"
+    error_message = "no heartbeat at all is exactly the failure the heartbeat rule exists for"
   }
 }
 

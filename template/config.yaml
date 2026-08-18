@@ -17,15 +17,20 @@ site:
     - label: example.com
       url: https://example.com
 
-# All optional; the renderer module documents the defaults.
+# All optional; defaults shown.
 page: {}
+#   history_days: 90            # length of the uptime bars
+#   outage_log_days: 30         # reach of the incident list
+#   retention_days: 400         # how long the table keeps history
+#   refresh_seconds: 60         # meta-refresh and staleness threshold
+#   down_window_multiple: 3     # a verdict is made over this many probe intervals
+#   down_quorum: 0.5            # the share of those executions that must succeed
 
-# Notification is Grafana's job, provisioned from here. Alerts fire when a
-# check has been down for down_for_minutes; leave email_addresses empty and
-# no alerting is created at all.
+# Notification is Grafana's job, provisioned from here, using the same
+# definition of down the page uses. Leave email_addresses empty and no
+# alerting is created at all.
 alerting:
   email_addresses: []
-  down_for_minutes: 5
 
 # The Grafana Cloud accounts whose probes run these checks. Adding one is an
 # entry here plus its token in the GRAFANA_CLOUD_TOKENS secret; CI generates

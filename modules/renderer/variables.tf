@@ -49,6 +49,12 @@ variable "page" {
     outage_log_days = optional(number, 30)  # reach of the derived incident list
     retention_days  = optional(number, 400) # DynamoDB TTL horizon
     refresh_seconds = optional(number, 60)  # meta-refresh and staleness threshold
+    # What "down" means, shared with the alert rule so the page and the
+    # pager cannot tell different stories. The window is this many probe
+    # intervals; the quorum is the share of executions in it that must
+    # have succeeded.
+    down_window_multiple = optional(number, 3)
+    down_quorum          = optional(number, 0.5)
   })
   default = {}
 
@@ -60,6 +66,16 @@ variable "page" {
   validation {
     condition     = var.page.outage_log_days <= var.page.retention_days
     error_message = "outage_log_days must be <= retention_days."
+  }
+
+  validation {
+    condition     = var.page.down_window_multiple >= 2
+    error_message = "down_window_multiple must be at least 2 — a window of one probe interval cannot require a second failure, which is the whole point of it."
+  }
+
+  validation {
+    condition     = var.page.down_quorum > 0 && var.page.down_quorum <= 1
+    error_message = "down_quorum is a share of probe executions, so it lies in (0, 1]."
   }
 }
 
@@ -92,8 +108,8 @@ resource "terraform_data" "manifest_compatibility" {
 
   lifecycle {
     precondition {
-      condition     = alltrue([for manifest in var.check_manifests : manifest.schema_version == 2])
-      error_message = "a check_manifest has a schema_version other than 2 — pin every module to the same ref."
+      condition     = alltrue([for manifest in var.check_manifests : manifest.schema_version == 3])
+      error_message = "a check_manifest has a schema_version other than 3 — pin every module to the same ref."
     }
 
     precondition {

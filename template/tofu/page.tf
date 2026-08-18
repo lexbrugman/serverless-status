@@ -14,7 +14,7 @@ module "renderer" {
   domain        = local.config.domain
   dns_zone_name = local.config.dns_zone_name
   site          = local.config.site
-  page          = local.config.page
+  page          = local.page
 
   check_manifests    = [module.checks_example.check_manifest]
   prometheus_sources = [module.checks_example.prometheus]

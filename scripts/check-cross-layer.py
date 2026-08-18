@@ -52,6 +52,27 @@ ROLE_MIRRORS = [
 ]
 
 
+# What "down" means is stated once in the renderer module's `page` variable
+# and restated in the instance root, which has to resolve it before two
+# consumers can be given the identical number. A backend-style default
+# cannot be read out of a module from a root, so the restatement is forced;
+# this is what stops the two drifting.
+DOWN_DEFAULTS = [
+    (
+        "down_window_multiple",
+        r"down_window_multiple = optional\(number, ([0-9.]+)\)",
+        r"down_window_multiple = ([0-9.]+)",
+    ),
+    (
+        "down_quorum",
+        r"down_quorum          = optional\(number, ([0-9.]+)\)",
+        r"down_quorum = ([0-9.]+)",
+    ),
+]
+DOWN_MODULE = "modules/renderer/variables.tf"
+DOWN_ROOT = "template/tofu/main.tf"
+
+
 def read_role_names() -> dict[str, str]:
     names = {}
     for role in ("plan", "apply"):
@@ -106,6 +127,15 @@ def main() -> None:
             failures.append(
                 f"{path}: {description} is {actual}, "
                 f"{ROLE_SOURCE} names the {role} role {role_names[role]}"
+            )
+
+    for name, module_pattern, root_pattern in DOWN_DEFAULTS:
+        declared = extract(DOWN_MODULE, module_pattern, f"the {name} default")
+        resolved = extract(DOWN_ROOT, root_pattern, f"the resolved {name}")
+        if declared != resolved:
+            failures.append(
+                f"{DOWN_ROOT}: {name} resolves to {resolved}, "
+                f"{DOWN_MODULE} defaults it to {declared}"
             )
 
     if failures:

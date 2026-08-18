@@ -20,9 +20,12 @@ def credentials(server):
     return {"query_url": f"http://127.0.0.1:{port}", "user": "u", "token": "t"}
 
 
+UP = prometheus.up_query(["website"], 5, 3, 0.5)
+
+
 class TestHTTP:
     def test_instant_queries_parse_to_job_maps(self, server):
-        success = prometheus.instant(credentials(server), prometheus.INSTANT_SUCCESS, NOW)
+        success = prometheus.instant(credentials(server), UP, NOW)
         assert success["website"] == 1.0
         duration = prometheus.instant(credentials(server), prometheus.INSTANT_DURATION, NOW)
         assert duration["website"] > 0
@@ -34,9 +37,9 @@ class TestHTTP:
     def test_http_error_raises_prometheus_error(self, server):
         mock_prometheus.PrometheusHandler.status_code = 500
         with pytest.raises(prometheus.PrometheusError, match="query"):
-            prometheus.instant(credentials(server), prometheus.INSTANT_SUCCESS, NOW)
+            prometheus.instant(credentials(server), UP, NOW)
 
     def test_unreachable_endpoint_raises_prometheus_error(self):
         broken = {"query_url": "http://127.0.0.1:9", "user": "u", "token": "t"}
         with pytest.raises(prometheus.PrometheusError):
-            prometheus.instant(broken, prometheus.INSTANT_SUCCESS, NOW)
+            prometheus.instant(broken, UP, NOW)

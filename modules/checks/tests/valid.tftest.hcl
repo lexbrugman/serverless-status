@@ -136,8 +136,19 @@ run "manifest_and_outputs" {
   }
 
   assert {
-    condition     = output.check_manifest.schema_version == 2
-    error_message = "manifest schema_version must be 2"
+    condition     = output.check_manifest.schema_version == 3
+    error_message = "manifest schema_version must be 3"
+  }
+
+  # The renderer makes its verdict over a window that is a multiple of the
+  # probe interval, so the resolved frequency travels with the check rather
+  # than being assumed on the other side of the seam.
+  assert {
+    condition = (
+      output.check_manifest.checks["api"].frequency_minutes == 5 &&
+      output.check_manifest.checks["office-uplink"].frequency_minutes == 10
+    )
+    error_message = "the manifest states each check's resolved frequency, defaults included"
   }
 
   assert {

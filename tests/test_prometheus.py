@@ -51,3 +51,35 @@ class TestParseMatrix:
         response = {"status": "success", "data": {"resultType": "vector", "result": []}}
         with pytest.raises(prometheus.PrometheusError, match="expected matrix"):
             prometheus.parse_matrix(response)
+
+
+class TestUpQuery:
+    """Pinned against modules/alerting, which builds the identical string.
+    The page and the pager answer to one definition of down, or they will
+    eventually tell different stories about the same check."""
+
+    EXPECTED = (
+        '(sum by (job) (sum_over_time(probe_success{job=~"^(api-example-com-https'
+        '|mx1-example-com-smtp)$"}[15m]))'
+        ' / sum by (job) (count_over_time(probe_success{job=~"^(api-example-com-https'
+        '|mx1-example-com-smtp)$"}[15m]))'
+        " >= bool 0.5) and "
+        '(sum by (job) (count_over_time(probe_success{job=~"^(api-example-com-https'
+        '|mx1-example-com-smtp)$"}[15m])) >= 2)'
+    )
+
+    def test_matches_the_alert_rule(self):
+        query = prometheus.up_query(["mx1-example-com-smtp", "api-example-com-https"], 5, 3, 0.5)
+        assert query == self.EXPECTED
+
+    def test_the_window_is_a_multiple_of_the_probe_interval(self):
+        assert "[30m]" in prometheus.up_query(["a"], 10, 3, 0.5)
+
+    def test_bool_keeps_down_distinguishable_from_absent(self):
+        """Without it the comparison filters, and a failing check looks the
+        same as one nobody heard from."""
+        assert ">= bool " in prometheus.up_query(["a"], 5, 2, 0.5)
+
+    def test_one_late_probe_is_tolerated(self):
+        assert prometheus.up_query(["a"], 5, 2, 0.5).endswith(">= 1)")
+        assert prometheus.up_query(["a"], 5, 4, 0.5).endswith(">= 3)")
