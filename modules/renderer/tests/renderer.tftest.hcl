@@ -57,9 +57,10 @@ variables {
 
   prometheus_sources = [
     {
-      query_url = "https://prometheus-prod-01-eu-west-0.grafana.net/api/prom"
-      user      = "987654"
-      token     = "glc_mock"
+      query_url   = "https://prometheus-prod-01-eu-west-0.grafana.net/api/prom"
+      user        = "987654"
+      token       = "glc_mock"
+      write_token = "glc_mock_write"
     },
   ]
 

@@ -13,6 +13,7 @@ from pathlib import Path
 import badge
 import prometheus
 import render
+import report
 import state
 import store
 
@@ -132,6 +133,22 @@ def read_history(tbl, mani: dict, now: datetime) -> tuple[dict, dict]:
     return rollups, outage_records
 
 
+def report_observations(mani: dict, success: dict | None, now: datetime, degraded: bool) -> None:
+    """Tell Grafana that this run happened, and which checks it heard from.
+
+    Never fatal: a report that cannot be sent must not be what stops the
+    page from rendering."""
+    observed = None if degraded else {key: key in success for key in mani["checks"]}
+    rendered_at = int(now.replace(tzinfo=UTC).timestamp())
+    try:
+        sources = prometheus_sources()
+    except prometheus.PrometheusError as error:
+        print(f"report: {error}")
+        return
+    for failure in report.publish(sources, report.payload(rendered_at, observed)):
+        print(f"report: {failure}")
+
+
 def render_handler(event, context):
     now = datetime.now(UTC).replace(tzinfo=None)
     mani = manifest()
@@ -170,6 +187,7 @@ def render_handler(event, context):
         store.put_latest(tbl, state.snapshot(page_state), page_state["source"], degraded)
 
     publish(documents)
+    report_observations(mani, success, now, degraded)
 
     return {
         "statusCode": 200,

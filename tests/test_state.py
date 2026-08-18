@@ -45,6 +45,16 @@ class TestOverallState:
     def test_some_down(self):
         assert state.overall_state(["up", "down"]) == "partial_outage"
 
+    def test_a_check_nobody_hears_from_is_not_operational(self):
+        assert state.overall_state(["up", "up", "unknown"]) == "partial_unknown"
+
+    def test_a_real_fault_outranks_silence(self):
+        assert state.overall_state(["up", "slow", "unknown"]) == "degraded"
+        assert state.overall_state(["up", "down", "unknown"]) == "partial_outage"
+
+    def test_all_known_and_healthy_is_operational(self):
+        assert state.overall_state(["up", "up"]) == "operational"
+
     def test_slow_degrades(self):
         assert state.overall_state(["up", "slow"]) == "degraded"
 

@@ -11,6 +11,15 @@ locals {
 
   query_ref     = "probe"
   threshold_ref = "failing"
+
+  # Ten minutes without a render is unambiguous against a one-minute
+  # schedule, and short enough that a dead renderer is a morning problem
+  # rather than a weekly one.
+  heartbeat_stale_seconds = 600
+
+  # Long enough that the slowest check's own interval cannot look like
+  # silence, short enough to matter the same day.
+  unreported_for = "30m"
 }
 
 # Emptiness is caught here rather than on the variables: a disabled module
@@ -136,6 +145,144 @@ resource "grafana_rule_group" "down" {
 
     # Routed per rule, so the stack's own notification policy tree is left
     # exactly as its owner arranged it.
+    notification_settings {
+      contact_point = grafana_contact_point.operators.name
+      group_by      = ["alertname", "job"]
+    }
+  }
+
+  # The renderer publishes the moment of its last successful run. Nothing
+  # else watches it: a page that stops updating serves its last render
+  # perfectly, and only a viewer's own clock would ever notice.
+  rule {
+    name      = "Status page not rendering"
+    condition = local.threshold_ref
+    for       = "5m"
+
+    # No heartbeat at all is the failure this rule exists for.
+    no_data_state  = "Alerting"
+    exec_err_state = "Alerting"
+
+    data {
+      ref_id         = local.query_ref
+      datasource_uid = grafana_data_source.metrics.uid
+
+      relative_time_range {
+        from = 3600
+        to   = 0
+      }
+
+      model = jsonencode({
+        refId      = local.query_ref
+        editorMode = "code"
+        expr       = "time() - max(status_page_rendered_timestamp)"
+        instant    = true
+        range      = false
+      })
+    }
+
+    data {
+      ref_id         = local.threshold_ref
+      datasource_uid = "__expr__"
+
+      relative_time_range {
+        from = 3600
+        to   = 0
+      }
+
+      model = jsonencode({
+        refId      = local.threshold_ref
+        type       = "threshold"
+        expression = local.query_ref
+        datasource = { type = "__expr__", uid = "__expr__" }
+        conditions = [{
+          evaluator = { type = "gt", params = [local.heartbeat_stale_seconds] }
+          operator  = { type = "and" }
+          query     = { params = [local.query_ref] }
+          reducer   = { type = "last", params = [] }
+          type      = "query"
+        }]
+      })
+    }
+
+    labels = {
+      source = "serverless-status"
+    }
+
+    annotations = {
+      summary = "The status page has not rendered for over ${local.heartbeat_stale_seconds}s."
+    }
+
+    notification_settings {
+      contact_point = grafana_contact_point.operators.name
+      group_by      = ["alertname"]
+    }
+  }
+
+  # A check that stops publishing is invisible to any query this stack can
+  # run against itself: absence carries no labels, so nothing here knows
+  # which check went missing. The renderer does — it holds the configured
+  # set — so it reports presence, and this watches that.
+  rule {
+    name      = "Check not reporting"
+    condition = local.threshold_ref
+    for       = local.unreported_for
+
+    # Silence here means the renderer is gone, which the heartbeat rule
+    # already owns. Alerting on it too would page once per check.
+    no_data_state  = "OK"
+    exec_err_state = "Alerting"
+
+    data {
+      ref_id         = local.query_ref
+      datasource_uid = grafana_data_source.metrics.uid
+
+      relative_time_range {
+        from = 3600
+        to   = 0
+      }
+
+      model = jsonencode({
+        refId      = local.query_ref
+        editorMode = "code"
+        expr       = "min by (job) (status_page_check_observed{job=~\"${local.job_pattern}\"})"
+        instant    = true
+        range      = false
+      })
+    }
+
+    data {
+      ref_id         = local.threshold_ref
+      datasource_uid = "__expr__"
+
+      relative_time_range {
+        from = 3600
+        to   = 0
+      }
+
+      model = jsonencode({
+        refId      = local.threshold_ref
+        type       = "threshold"
+        expression = local.query_ref
+        datasource = { type = "__expr__", uid = "__expr__" }
+        conditions = [{
+          evaluator = { type = "lt", params = [1] }
+          operator  = { type = "and" }
+          query     = { params = [local.query_ref] }
+          reducer   = { type = "last", params = [] }
+          type      = "query"
+        }]
+      })
+    }
+
+    labels = {
+      source = "serverless-status"
+    }
+
+    annotations = {
+      summary = "{{ $labels.job }} has stopped reporting — it is no longer being monitored."
+    }
+
     notification_settings {
       contact_point = grafana_contact_point.operators.name
       group_by      = ["alertname", "job"]

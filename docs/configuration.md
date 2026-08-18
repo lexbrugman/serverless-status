@@ -105,8 +105,14 @@ contact point, and one multi-dimensional rule that fans out per check.
 Routing is attached to the rule itself, so the stack's notification policy
 tree stays exactly as its owner arranged it.
 
-A check that stops publishing alerts too. Silence means the check is no
-longer being run, which is the failure nobody notices unaided.
+Two more rules cover the failures a down-check rule cannot see. The
+renderer publishes the moment of its last successful run, and an alert
+fires when that goes stale — a page that stops rendering serves its last
+render perfectly, so nothing else would notice. It also publishes, per
+check, whether that run heard from it at all; a check that stops reporting
+raises its own alert. Absence carries no labels, so Grafana cannot ask
+which check went missing: only the renderer holds the configured set, and
+so only the renderer can say what is not there.
 
 ## Site and page
 

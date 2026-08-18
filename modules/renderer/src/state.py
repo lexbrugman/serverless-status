@@ -41,6 +41,11 @@ def overall_state(states: list[str]) -> str:
         return "partial_outage"
     if any(s == "slow" for s in known):
         return "degraded"
+    # A check nobody is hearing from is not a healthy check; it is one the
+    # page has stopped being able to speak for. Ranked below every real
+    # fault, because a failure that is visible outranks one that is not.
+    if len(known) != len(states):
+        return "partial_unknown"
     return "operational"
 
 

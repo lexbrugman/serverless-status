@@ -45,6 +45,7 @@ OVERALL_STATES = {
     "degraded": {"label": "Degraded performance", "fill": "warn"},
     "partial_outage": {"label": "Partial outage", "fill": "serious"},
     "major_outage": {"label": "Major outage", "fill": "critical"},
+    "partial_unknown": {"label": "Some checks are not reporting", "fill": "neutral"},
     "unknown": {"label": "Awaiting first data", "fill": "neutral"},
 }
 

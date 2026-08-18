@@ -71,9 +71,10 @@ variable "check_manifests" {
 variable "prometheus_sources" {
   description = "Each checks module's prometheus output; the handler queries every source and merges by job. Stored only in SSM."
   type = list(object({
-    query_url = string
-    user      = string
-    token     = string
+    query_url   = string
+    user        = string
+    token       = string
+    write_token = string
   }))
   sensitive = true
 }

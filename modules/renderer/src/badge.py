@@ -11,13 +11,14 @@ MESSAGES = {
     "degraded": "degraded",
     "partial_outage": "partial outage",
     "major_outage": "major outage",
+    "partial_unknown": "not reporting",
     "unknown": "unknown",
 }
 
 LABEL = "status"
 LABEL_FILL = "#555"
 # Light fills (warn, neutral) need dark text; the rest carry white.
-DARK_TEXT = {"degraded": "#3b2a00", "unknown": "#1c1917"}
+DARK_TEXT = {"degraded": "#3b2a00", "unknown": "#1c1917", "partial_unknown": "#1c1917"}
 
 FONT_SIZE = 11
 # Average glyph advance for the system sans fonts badges render in at 11px;

@@ -169,6 +169,32 @@ resource "grafana_cloud_access_policy_token" "metrics_read" {
   name             = "${var.stack_slug}-status-metrics-read"
 }
 
+# The renderer reports what it observed back into this stack: a heartbeat,
+# and one gauge per check saying whether the run heard from it. Separate
+# from the read policy on purpose — the credential the page queries with
+# stays unable to write.
+resource "grafana_cloud_access_policy" "metrics_write" {
+  provider = grafana.cloud
+
+  region       = data.grafana_cloud_stack.this.region_slug
+  name         = "${var.stack_slug}-status-metrics-write"
+  display_name = "Status page metrics write (${var.stack_slug})"
+  scopes       = ["metrics:write"]
+
+  realm {
+    type       = "stack"
+    identifier = data.grafana_cloud_stack.this.id
+  }
+}
+
+resource "grafana_cloud_access_policy_token" "metrics_write" {
+  provider = grafana.cloud
+
+  region           = data.grafana_cloud_stack.this.region_slug
+  access_policy_id = grafana_cloud_access_policy.metrics_write.policy_id
+  name             = "${var.stack_slug}-status-metrics-write"
+}
+
 # Alerting lives inside the stack, which a cloud access policy token cannot
 # reach: it mints a stack-scoped service account instead, and the root
 # configures a provider from it. Minted whether or not alerting is

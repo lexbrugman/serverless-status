@@ -19,9 +19,10 @@ output "prometheus" {
   description = "Prometheus query endpoint and credentials for the renderer, stored in SSM by the renderer module — never in GitHub, a file, or a shell."
   sensitive   = true
   value = {
-    query_url = "${data.grafana_cloud_stack.this.prometheus_url}/api/prom"
-    user      = tostring(data.grafana_cloud_stack.this.prometheus_user_id)
-    token     = grafana_cloud_access_policy_token.metrics_read.token
+    query_url   = "${data.grafana_cloud_stack.this.prometheus_url}/api/prom"
+    user        = tostring(data.grafana_cloud_stack.this.prometheus_user_id)
+    token       = grafana_cloud_access_policy_token.metrics_read.token
+    write_token = grafana_cloud_access_policy_token.metrics_write.token
   }
 }
 

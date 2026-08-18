@@ -46,7 +46,14 @@ def aws(prom_server, monkeypatch):
             Name=PARAM,
             Type="SecureString",
             Value=json.dumps(
-                [{"query_url": f"http://127.0.0.1:{port}", "user": "u", "token": "t"}]
+                [
+                    {
+                        "query_url": f"http://127.0.0.1:{port}",
+                        "user": "u",
+                        "token": "t",
+                        "write_token": "w",
+                    }
+                ]
             ),
         )
         monkeypatch.setenv("TABLE_NAME", TABLE)
