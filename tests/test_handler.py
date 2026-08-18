@@ -5,6 +5,7 @@ import boto3
 import handler
 import mock_prometheus
 import pytest
+import state
 import store
 from moto import mock_aws
 
@@ -127,11 +128,19 @@ class TestTransitions:
 class TestRecordHistory:
     def test_check_missing_from_metrics_writes_no_rollup(self, aws):
         tbl = store.table(TABLE)
-        now = datetime.now(UTC).replace(tzinfo=None)
-        handler.record_history(tbl, handler.manifest(), None, {"website": 1.0}, {}, now)
-        today = now.date().isoformat()
-        assert store.rollups(tbl, "website", today, today)[0]["samples"] == 1
-        assert store.rollups(tbl, "api", today, today) == []
+        mani = handler.manifest()
+        now = datetime.now(UTC)
+        today = state.site_today(now, mani["site"]["timezone"])
+        handler.record_history(tbl, mani, None, {"website": 1.0}, {}, now, today)
+        day = today.isoformat()
+        assert store.rollups(tbl, "website", day, day)[0]["samples"] == 1
+        assert store.rollups(tbl, "api", day, day) == []
+
+    def test_the_rollup_day_is_the_sites_not_utc(self):
+        """22:30 UTC is already tomorrow in Amsterdam, and the bar the
+        sample lands in has to agree with the clock on the page."""
+        moment = datetime(2026, 8, 17, 22, 30, tzinfo=UTC)
+        assert state.site_today(moment, "Europe/Amsterdam").isoformat() == "2026-08-18"
 
 
 class TestDegraded:

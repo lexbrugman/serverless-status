@@ -131,7 +131,7 @@ site:
   name: Example Corp
   title: Example Corp status                  # optional, defaults to "<name> status"
   description: Live availability of our services.   # optional
-  timezone: Europe/Amsterdam                  # IANA; outage log and timestamps
+  timezone: Europe/Amsterdam                  # IANA; every time and day on the page
   accent: "#16a34a"                           # optional
   logo_svg: |                                 # optional, inlined verbatim
     <svg xmlns="http://www.w3.org/2000/svg" …></svg>
@@ -151,6 +151,14 @@ page:                     # all optional, defaults shown
 A page cannot promise more history than the table keeps:
 `retention_days >= history_days` and `outage_log_days <= retention_days`
 are enforced.
+
+`timezone` is the page's single frame of reference. Timestamps are stored
+UTC and rendered in it, and the uptime bars split days at its midnight
+rather than UTC's — so past midnight a new bar appears when the clock on
+the page says it should. Days already recorded keep the boundary they were
+written with, which is a couple of hours at one edge and invisible against
+a daily ratio. An unknown zone name stops the renderer rather than quietly
+serving every time a few hours wrong.
 
 **Deliberately not knobs:** light/dark (always both), `status.json` and
 `badge.svg` (always shipped), fonts (system stack), layout, language, and

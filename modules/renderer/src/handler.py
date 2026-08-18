@@ -7,7 +7,7 @@ read, assemble, render, publish.
 
 import json
 import os
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import badge
@@ -114,12 +114,12 @@ def query_metrics(mani: dict, now: datetime) -> tuple[dict | None, dict | None, 
         return None, None, None, True
 
 
-def record_history(tbl, mani: dict, previous: dict | None, success, duration, now) -> None:
+def record_history(tbl, mani: dict, previous: dict | None, success, duration, now, today) -> None:
     """Transitions become outage records; the sample folds into today's
     rollup. Skipped entirely on a degraded run, so a Grafana outage never
     corrupts history with false downtime."""
     page = mani["page"]
-    expires_at = int((now + timedelta(days=page["retention_days"])).replace(tzinfo=UTC).timestamp())
+    expires_at = int((now + timedelta(days=page["retention_days"])).timestamp())
     current_up = {
         key: (None if key not in success else success[key] >= 1) for key in mani["checks"]
     }
@@ -129,22 +129,22 @@ def record_history(tbl, mani: dict, previous: dict | None, success, duration, no
             store.open_outage(tbl, transition["key"], transition["at"], expires_at)
         else:
             store.close_outage(tbl, transition["key"], transition["at"])
-    today = now.date().isoformat()
+    day = today.isoformat()
     for key, up in current_up.items():
         if up is None:
             continue
         latency_ms = round(duration[key] * 1000) if key in duration else None
-        store.update_rollup(tbl, key, today, up, latency_ms, expires_at)
+        store.update_rollup(tbl, key, day, up, latency_ms, expires_at)
 
 
-def read_history(tbl, mani: dict, now: datetime) -> tuple[dict, dict]:
+def read_history(tbl, mani: dict, today: date) -> tuple[dict, dict]:
     page = mani["page"]
-    first_day = (now.date() - timedelta(days=page["history_days"] - 1)).isoformat()
-    today = now.date().isoformat()
+    first_day = (today - timedelta(days=page["history_days"] - 1)).isoformat()
+    last_day = today.isoformat()
     rollups = {}
     outage_records = {}
     for key in mani["checks"]:
-        rollups[key] = store.rollups(tbl, key, first_day, today)
+        rollups[key] = store.rollups(tbl, key, first_day, last_day)
         outage_records[key] = store.outages(tbl, key)
     return rollups, outage_records
 
@@ -155,7 +155,7 @@ def report_observations(mani: dict, success: dict | None, now: datetime, degrade
     Never fatal: a report that cannot be sent must not be what stops the
     page from rendering."""
     observed = None if degraded else {key: key in success for key in mani["checks"]}
-    rendered_at = int(now.replace(tzinfo=UTC).timestamp())
+    rendered_at = int(now.timestamp())
     try:
         sources = prometheus_sources()
     except prometheus.PrometheusError as error:
@@ -166,15 +166,19 @@ def report_observations(mani: dict, success: dict | None, now: datetime, degrade
 
 
 def render_handler(event, context):
-    now = datetime.now(UTC).replace(tzinfo=None)
     mani = manifest()
+    # Resolved before anything else runs: an unknown zone is a configuration
+    # error, and one that renders a plausible-looking page in the wrong
+    # hours is worse than one that stops.
+    now = datetime.now(UTC)
+    today = state.site_today(now, mani["site"]["timezone"])
     tbl = store.table(os.environ["TABLE_NAME"], os.environ.get("DDB_ENDPOINT"))
 
     previous = store.get_latest(tbl)
     success, duration, duration_range, degraded = query_metrics(mani, now)
     if not degraded:
-        record_history(tbl, mani, previous, success, duration, now)
-    rollups, outage_records = read_history(tbl, mani, now)
+        record_history(tbl, mani, previous, success, duration, now, today)
+    rollups, outage_records = read_history(tbl, mani, today)
 
     page_state = state.assemble(
         mani,
@@ -185,6 +189,7 @@ def render_handler(event, context):
         rollups=rollups,
         outages=outage_records,
         previous=previous,
+        today=today,
         version=os.environ.get("PAGE_VERSION"),
         repository=os.environ.get("PAGE_SOURCE"),
         degraded=degraded,

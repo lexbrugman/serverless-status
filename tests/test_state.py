@@ -1,6 +1,7 @@
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 import fixtures
+import pytest
 import state
 
 NOW = datetime(2026, 8, 14, 12, 0, 0)
@@ -30,6 +31,34 @@ class TestCheckState:
 
     def test_no_latency_is_never_slow(self):
         assert state.check_state(True, None, 800) == "up"
+
+
+class TestSiteToday:
+    """The bars split days where the page's own clock says midnight is."""
+
+    def test_the_day_is_the_sites_not_utc(self):
+        # 22:30 UTC is already the next day in Amsterdam.
+        moment = datetime(2026, 8, 17, 22, 30, tzinfo=UTC)
+        assert state.site_today(moment, "Europe/Amsterdam").isoformat() == "2026-08-18"
+        assert state.site_today(moment, "UTC").isoformat() == "2026-08-17"
+
+    def test_a_naive_moment_is_read_as_utc(self):
+        """The convention throughout the renderer, kept for callers that
+        still hand one over."""
+        naive = datetime(2026, 8, 17, 22, 30)
+        assert state.site_today(naive, "Europe/Amsterdam").isoformat() == "2026-08-18"
+
+    def test_it_holds_across_a_dst_change(self):
+        # The Sunday Europe/Amsterdam falls back: 00:30 UTC is still 02:30
+        # locally, the same day either side of the change.
+        before = datetime(2026, 10, 25, 0, 30, tzinfo=UTC)
+        after = datetime(2026, 10, 25, 1, 30, tzinfo=UTC)
+        assert state.site_today(before, "Europe/Amsterdam").isoformat() == "2026-10-25"
+        assert state.site_today(after, "Europe/Amsterdam").isoformat() == "2026-10-25"
+
+    def test_an_unknown_zone_is_an_error_not_a_silent_utc(self):
+        with pytest.raises((KeyError, ValueError)):
+            state.site_today(datetime(2026, 8, 17, tzinfo=UTC), "Nowhere/Nowhere")
 
 
 class TestOverallState:

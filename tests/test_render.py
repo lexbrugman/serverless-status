@@ -25,10 +25,6 @@ class TestLocalTime:
             "14 Aug 2026, 14:00 CEST"
         )
 
-    def test_unknown_timezone_falls_back_to_utc(self):
-        assert "12:00" in render._local_time("2026-08-14T12:00:00Z", "Nowhere/Nowhere")
-        assert "12:00" in render._short_time("2026-08-14T12:00:00Z", "Nowhere/Nowhere")
-
     def test_short_time(self):
         assert render._short_time("2026-08-14T12:00:00Z", "Europe/Amsterdam") == "14 Aug 14:00"
 

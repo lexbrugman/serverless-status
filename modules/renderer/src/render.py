@@ -20,22 +20,17 @@ def _esc(value) -> str:
     return html.escape(str(value), quote=True)
 
 
+# No fallback: the zone is resolved once, before anything renders, so by
+# here it is known good. A silent drop to UTC would render every timestamp
+# an hour or two wrong and look entirely correct doing it.
 def _local_time(iso_utc: str, timezone: str) -> str:
     moment = datetime.strptime(iso_utc, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
-    try:
-        local = moment.astimezone(ZoneInfo(timezone))
-    except KeyError, ValueError:
-        local = moment
-    return local.strftime("%d %b %Y, %H:%M %Z")
+    return moment.astimezone(ZoneInfo(timezone)).strftime("%d %b %Y, %H:%M %Z")
 
 
 def _short_time(iso_utc: str, timezone: str) -> str:
     moment = datetime.strptime(iso_utc, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
-    try:
-        local = moment.astimezone(ZoneInfo(timezone))
-    except KeyError, ValueError:
-        local = moment
-    return local.strftime("%d %b %H:%M")
+    return moment.astimezone(ZoneInfo(timezone)).strftime("%d %b %H:%M")
 
 
 def humanize_duration(seconds: float | None) -> str:

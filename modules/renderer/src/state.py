@@ -3,9 +3,21 @@ history in, one state dict out. No I/O — this is what makes the page
 unit-testable and preview.py possible without credentials.
 """
 
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 DEFAULT_PORTS = {"https": 443, "http": 80, "smtp": 25}
+
+
+def site_today(now: datetime, timezone: str) -> date:
+    """The calendar day the page is showing, in the site's own timezone.
+
+    An instant is a moment and stays UTC; a day is a bucket, and a bucket
+    needs a frame of reference. The page states one — the same one its
+    clock and its outage log are rendered in — so the bars split where the
+    reader's midnight is, not where UTC's happens to be.
+    """
+    return now.replace(tzinfo=now.tzinfo or UTC).astimezone(ZoneInfo(timezone)).date()
 
 
 def check_state(up: bool | None, latency_ms: float | None, budget_ms: float | None) -> str:
@@ -137,6 +149,7 @@ def assemble(
     rollups: dict[str, list] | None = None,
     outages: dict[str, list] | None = None,
     previous: dict | None = None,
+    today: date | None = None,
     version: str | None = None,
     repository: str | None = None,
     degraded: bool = False,
@@ -150,7 +163,8 @@ def assemble(
     rollups = rollups or {}
     outages = outages or {}
     previous_checks = (previous or {}).get("checks", {})
-    today = now.date()
+    if today is None:
+        today = site_today(now, site["timezone"])
 
     checks = []
     for key, check in manifest["checks"].items():
