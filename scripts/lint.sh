@@ -80,7 +80,10 @@ fi
 # The committed template floats on master; new-instance.sh stamps the
 # release at bootstrap. A pinned ref here would put Renovate on a treadmill:
 # merging its bump PR cuts a new tag, which makes the template stale again.
-mapfile -t template_tf < <(discover 'template/tofu/*.tf' 'template/tofu/*/*.tf' 'template/tofu/*/*/*.tf')
+# One pathspec, at any depth: git matches without FNM_PATHNAME, so `*`
+# crosses directory boundaries here. A shell glob in the same shape would
+# not, which is the trap — do not "fix" this by enumerating levels.
+mapfile -t template_tf < <(discover 'template/tofu/*.tf')
 require_found "template .tf files" "${#template_tf[@]}"
 echo "template ref guard (${#template_tf[@]} files)"
 if grep -n '?ref=' "${template_tf[@]}" | grep -v '?ref=master'; then
