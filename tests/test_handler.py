@@ -119,7 +119,7 @@ class TestTransitions:
         result = handler.render_handler({}, None)
         assert result["overall"] == "partial_outage"
         tbl = store.table(TABLE)
-        records = store.outages(tbl, "mail-inbound")
+        records = store.periods(tbl, store.OUTAGE, "mail-inbound")
         assert len(records) == 1
         assert records[0]["ended_at"] is None
 
@@ -128,7 +128,7 @@ class TestTransitions:
         )
         result = handler.render_handler({}, None)
         assert result["overall"] == "operational"
-        records = store.outages(tbl, "mail-inbound")
+        records = store.periods(tbl, store.OUTAGE, "mail-inbound")
         assert records[0]["ended_at"] is not None
         assert records[0]["duration_seconds"] >= 0
 
@@ -140,9 +140,10 @@ class TestRecordHistory:
         now = datetime.now(UTC)
         today = state.site_today(now, mani["site"]["timezone"])
         read = {
-            "fractions": {},
+            "down_samples": {},
             "day_samples": {"website": 12.0},
             "day_successes": {"website": 11.0},
+            "budget_samples": {},
         }
         handler.record_history(tbl, mani, None, read, now, today)
         day = today.isoformat()

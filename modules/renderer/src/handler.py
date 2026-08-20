@@ -89,6 +89,20 @@ def frequency_groups(mani: dict) -> dict[int, list[str]]:
     return groups
 
 
+def latency_groups(mani: dict) -> dict[tuple[int, float], list[str]]:
+    """Checks grouped by probe interval and latency budget. The interval
+    sets the window and the budget sits inside the expression, so a group is
+    the largest set one query can judge at once. A check declaring no budget
+    states no opinion about latency and joins no group."""
+    groups: dict[tuple[int, float], list[str]] = {}
+    for key, check in mani["checks"].items():
+        budget = check.get("latency_budget_ms")
+        if budget is None:
+            continue
+        groups.setdefault((check["frequency_minutes"], budget), []).append(key)
+    return groups
+
+
 def query_metrics(mani: dict, now: datetime, today: date, since: datetime) -> tuple[dict, bool]:
     """Everything one run reads from Prometheus, merged across every source
     by job. Any failure anywhere yields the fully degraded render — never a
@@ -98,9 +112,10 @@ def query_metrics(mani: dict, now: datetime, today: date, since: datetime) -> tu
         "success": {},
         "duration": {},
         "duration_range": {},
-        "fractions": {},
+        "down_samples": {},
         "day_samples": {},
         "day_successes": {},
+        "budget_samples": {},
     }
     page = mani["page"]
     elapsed = max(1, int((now - state.day_start(today, mani["site"]["timezone"])).total_seconds()))
@@ -116,14 +131,28 @@ def query_metrics(mani: dict, now: datetime, today: date, since: datetime) -> tu
                         now,
                     )
                 )
-                read["fractions"].update(
-                    prometheus.series(
-                        source, prometheus.fraction_query(jobs), since, now, frequency * 60
+                read["down_samples"].update(
+                    prometheus.paired_series(
+                        source,
+                        prometheus.success_counts_queries(jobs),
+                        since,
+                        now,
+                        frequency * 60,
                     )
                 )
                 samples_query, successes_query = prometheus.day_totals_queries(jobs, elapsed)
                 read["day_samples"].update(prometheus.instant(source, samples_query, now))
                 read["day_successes"].update(prometheus.instant(source, successes_query, now))
+            for (frequency, budget), jobs in latency_groups(mani).items():
+                read["budget_samples"].update(
+                    prometheus.paired_series(
+                        source,
+                        prometheus.budget_counts_queries(jobs, budget / 1000),
+                        since,
+                        now,
+                        frequency * 60,
+                    )
+                )
             read["duration"].update(prometheus.instant(source, prometheus.INSTANT_DURATION, now))
             read["duration_range"].update(prometheus.latency_range(source, now))
         return read, False
@@ -147,19 +176,23 @@ def record_history(tbl, mani: dict, previous: dict | None, read: dict, now, toda
     previous_checks = (previous or {}).get("checks", {})
     watermark = None
     for key in mani["checks"]:
-        series = read["fractions"].get(key, [])
-        if series:
-            watermark = series[-1][0] if watermark is None else max(watermark, series[-1][0])
-        for transition in state.confirmed_transitions(
-            series,
-            page["down_window_multiple"],
-            page["down_quorum"],
-            previous_checks.get(key, {}).get("up"),
+        cached = previous_checks.get(key, {})
+        # Outages and degradations are the same walk over two fraction
+        # series: one definition of a confirmed period, applied twice.
+        for field, kind, before in (
+            ("down_samples", store.OUTAGE, cached.get("up")),
+            ("budget_samples", store.DEGRADED, cached.get("within_budget")),
         ):
-            if transition["kind"] == "opened":
-                store.open_outage(tbl, key, transition["at"], expires_at)
-            else:
-                store.close_outage(tbl, key, transition["at"])
+            series = read[field].get(key, [])
+            if series:
+                watermark = series[-1][0] if watermark is None else max(watermark, series[-1][0])
+            for transition in state.confirmed_transitions(
+                series, page["down_window_multiple"], page["down_quorum"], before
+            ):
+                if transition["kind"] == "opened":
+                    store.open_period(tbl, kind, key, transition["at"], expires_at)
+                else:
+                    store.close_period(tbl, kind, key, transition["at"])
     day = today.isoformat()
     for key, samples in read["day_samples"].items():
         store.put_rollup(
@@ -168,16 +201,18 @@ def record_history(tbl, mani: dict, previous: dict | None, read: dict, now, toda
     return state.iso(state.moment(watermark)) if watermark else None
 
 
-def read_history(tbl, mani: dict, today: date) -> tuple[dict, dict]:
+def read_history(tbl, mani: dict, today: date) -> tuple[dict, dict, dict]:
     page = mani["page"]
     first_day = (today - timedelta(days=page["history_days"] - 1)).isoformat()
     last_day = today.isoformat()
     rollups = {}
     outage_records = {}
+    degraded_records = {}
     for key in mani["checks"]:
         rollups[key] = store.rollups(tbl, key, first_day, last_day)
-        outage_records[key] = store.outages(tbl, key)
-    return rollups, outage_records
+        outage_records[key] = store.periods(tbl, store.OUTAGE, key)
+        degraded_records[key] = store.periods(tbl, store.DEGRADED, key)
+    return rollups, outage_records, degraded_records
 
 
 def report_observations(mani: dict, success: dict | None, now: datetime, degraded: bool) -> None:
@@ -237,7 +272,7 @@ def render_handler(event, context):
     processed_through = None
     if not degraded:
         processed_through = record_history(tbl, mani, previous, read, now, today)
-    rollups, outage_records = read_history(tbl, mani, today)
+    rollups, outage_records, degraded_records = read_history(tbl, mani, today)
     success, duration = read["success"], read["duration"]
 
     page_state = state.assemble(
@@ -245,9 +280,11 @@ def render_handler(event, context):
         now=now,
         success=success,
         duration=duration,
+        budget_samples=read["budget_samples"],
         duration_range=read["duration_range"],
         rollups=rollups,
         outages=outage_records,
+        degradations=degraded_records,
         previous=previous,
         today=today,
         version=os.environ.get("PAGE_VERSION"),

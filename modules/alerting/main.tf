@@ -11,7 +11,20 @@ locals {
   # not-reporting rule watches everything, because a check that stopped
   # running is a failure of the monitoring rather than of the thing.
   down_pattern      = "^(${join("|", sort([for job in var.down_jobs : job.key]))})$"
-  reporting_pattern = "^(${join("|", sort(var.reporting_jobs))})$"
+  reporting_pattern = "^(${join("|", sort([for job in var.reporting_jobs : job.key]))})$"
+
+  # Grafana knows a check by its job label and nothing else. The display
+  # name and the target are facts only this configuration holds, so they
+  # are rendered by a chain of guards — one of which matches — rather than
+  # joined onto the rule's expression, which is pinned byte-for-byte
+  # against the renderer's own query and may not be touched.
+  named = { for context, label in {
+    rule         = "$labels.job"
+    notification = ".CommonLabels.job"
+    } : context => join("", [
+      for job in var.reporting_jobs :
+      "{{ if eq ${label} \"${job.key}\" }}${job.display} (${job.target}){{ end }}"
+  ]) }
 
   # One rule per probe interval. The window that turns samples into a
   # verdict is a multiple of that interval, so checks running at different
@@ -20,8 +33,9 @@ locals {
   by_frequency = { for job in var.down_jobs : tostring(job.frequency_minutes) => job.key... }
 
   # One late probe is tolerated; below that there is not enough in the
-  # window to judge. Mirrors prometheus.up_query in the renderer — the two
-  # are pinned to the same literal by tests on both sides.
+  # window to judge. Mirrors prometheus.up_query in the renderer; each
+  # layer's test states its own copy of the resulting string, and
+  # scripts/check-cross-layer.py is what compares the two.
   min_samples = max(1, var.down_window_multiple - 1)
 
   selectors = { for frequency, keys in local.by_frequency :
@@ -97,7 +111,24 @@ resource "grafana_contact_point" "operators" {
 
   email {
     addresses = var.email_addresses
-    subject   = "{{ .CommonLabels.job }} is down"
+    # Which of the three rules fired, and whether this is the failure or
+    # its recovery. One fixed subject greets both alike, and a recovery
+    # announcing itself as an outage is read as a second one.
+    subject = join("", [
+      "{{ if eq .Status \"resolved\" }}Recovered: {{ end }}{{ .CommonLabels.alertname }}",
+      "{{ if .CommonLabels.job }} — ${local.named.notification}{{ end }}",
+    ])
+    # Grafana can only know when its own window filled; the page stamps an
+    # incident at the sample it began. So the message says what was
+    # detected and when it was noticed, and points at the record rather
+    # than restating a duration that would disagree with it.
+    message = <<-EOT
+      {{ range .Alerts }}{{ .Annotations.summary }}
+
+      Noticed {{ .StartsAt.Format "15:04 MST on 2 Jan 2006" }}.
+
+      {{ end }}Confirmed start times and full history: ${var.page_url}
+    EOT
   }
 }
 
@@ -170,7 +201,7 @@ resource "grafana_rule_group" "down" {
       }
 
       annotations = {
-        summary = "{{ $labels.job }} is down: fewer than ${var.down_quorum} of its probe executions succeeded over the last ${var.down_window_multiple} intervals."
+        summary = "${local.named.rule} is not responding: fewer than ${format("%g%%", var.down_quorum * 100)} of its probe locations succeeded across ${var.down_window_multiple} probe intervals."
       }
 
       # Routed per rule, so the stack's own notification policy tree is
@@ -241,7 +272,7 @@ resource "grafana_rule_group" "down" {
     }
 
     annotations = {
-      summary = "The status page has not rendered for over ${local.heartbeat_stale_seconds}s."
+      summary = "The status page has stopped updating: its last successful render was over ${local.heartbeat_stale_seconds / 60} minutes ago."
     }
 
     notification_settings {
@@ -311,7 +342,7 @@ resource "grafana_rule_group" "down" {
     }
 
     annotations = {
-      summary = "{{ $labels.job }} has stopped reporting — it is no longer being monitored."
+      summary = "${local.named.rule} has stopped reporting: nothing is monitoring it, whatever it may be doing."
     }
 
     notification_settings {

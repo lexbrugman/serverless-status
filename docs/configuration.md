@@ -46,7 +46,7 @@ unknown account fails the plan naming the offender.
 | `frequency_minutes` | Optional; how often the probe runs |
 | `timeout_seconds` | Optional |
 | `order` | Optional sort key within the group |
-| `latency_budget_ms` | Optional; exceeded while up shows the amber "Slow" state |
+| `latency_budget_ms` | Optional; must be under `timeout_seconds` — a confirmed miss is the amber "Slow" state |
 | `alert` | Optional; `false` keeps a check off the notification path |
 | `key` | Optional; only to separate two checks alike in host, protocol and port |
 
@@ -102,13 +102,22 @@ alerting:
 ```
 
 Notification is Grafana's job, provisioned from here. Every check pages you
-when it fails unless it says `alert: false`, and an alert fires on the same
-definition of down the page uses — so the page and the pager never tell different stories
-about the same check.
+when it fails unless it says `alert: false`, and an alert fires on the
+literal query the page asks — the same PromQL string, compared between the
+two layers by `scripts/check-cross-layer.py`, so the page and the pager
+cannot come to tell different stories about the same check.
+
+**Latency is shown, not paged.** A check past its budget goes amber, records
+a degradation and moves its performance figure, and no rule watches it.
+That is a decision rather than a gap: an outage should wake somebody, a
+slow service is something a reader checking "is it me or you" needs to see
+and an operator reads in the morning.
 
 That definition is two numbers under `page`. `down_window_multiple` is how
 many probe intervals a verdict is made over; `down_quorum` is the share of
-the executions in that window that must have succeeded. Counting executions
+the probe locations that must agree — that a check is up, and for one with
+a latency budget, that it is inside it. One statement of how much evidence
+is enough, asked of both questions. Counting executions
 rather than minutes is what makes it a debounce: a wall-clock wait shorter
 than the probe interval re-reads one sample, so it delays the alert without
 ever requiring a second failure. Below 1, the quorum also absorbs a single
@@ -127,7 +136,15 @@ tree stays exactly as its owner arranged it.
 `alert: false` opts a check out of being paged about when it fails. It does
 not opt it out of being watched: a check that stops reporting raises an
 alert either way, because that is a failure of the monitoring rather than
-of the thing monitored, and it is the one nobody notices unaided.
+of the thing monitored, and it is the one nobody notices unaided. It also
+does not opt it out of the page — every check has its bars, its incidents
+and its history whether or not a failure is worth a message.
+
+A notification names the check and its target rather than the job label
+Grafana knows it by, says whether it is the failure or the recovery, and
+links to the page. It states no duration on purpose: an incident is stamped
+at the sample it began, and Grafana can only know when its own window
+filled, so any figure it quoted would disagree with the log it points at.
 
 Two more rules cover the failures a down-check rule cannot see. The
 renderer publishes the moment of its last successful run, and an alert
@@ -154,7 +171,7 @@ site:
       url: https://example.com
 
 page:                     # all optional, defaults shown
-  history_days: 90        # length of the uptime bars
+  history_days: 90        # length of the uptime bars, and the longest window
   outage_log_days: 30     # reach of the derived incident list
   retention_days: 400     # DynamoDB TTL horizon
   refresh_seconds: 60     # meta-refresh and staleness threshold
@@ -178,6 +195,52 @@ serving every time a few hours wrong.
 `badge.svg` (always shipped), fonts (system stack), layout, language, and
 the semantic up/amber/down colours. A status page whose green is
 configurable is a status page nobody can read at a glance.
+
+## What the page's numbers mean
+
+One figure is the answer, and it carries its own name. Everything else is
+behind the disclosure under it, because a reader arrives asking whether the
+thing works and cannot tell which of nine percentages was the one to read.
+
+**Availability** is the headline: the share of observed time with no
+confirmed outage against it, in wall-clock seconds, measured against the
+incident log — which holds both kinds of period, so an amber day is always
+nameable in the list below it. It is also offered over 24 hours, 7 and 30 days, since a
+ninety-day figure cannot say whether something is flaky right now.
+
+**Performance** is the same measurement against the degradation log: the
+share of observed time no confirmed degradation covers, for the checks that
+declare a `latency_budget_ms`. Same records, same arithmetic, different
+subject.
+
+**Probe success** is the share of individual probe executions that
+succeeded — executions rather than time, pooled across every probe
+location. It is the raw signal underneath the debounce and it is a
+diagnostic, not a verdict: it drops whenever a single location flaps, which
+is precisely what the verdicts filter out. It is disclosed, never shown
+beside the answer.
+
+### Anything shown as a degradation filters probe locations
+
+No state the page displays — red, amber, the pill, the banner — can be
+raised by a dissenting minority of probe locations. Down and slow are the
+same construction: the share of locations agreeing at each instant, judged
+against `down_quorum` over `down_window_multiple` intervals, then recorded
+as a period with the moment it started. A mean cannot filter a minority and
+only a quorum can, which is why nothing on the page averages locations to
+decide a state. With a single probe location there is no minority to
+filter, and the same construction reduces to the time debounce alone.
+
+A latency budget only means anything between itself and the probe's own
+timeout. An execution running past `timeout_seconds` reports failure, so a
+check whose budget reaches the timeout can read up or down but never slow;
+the plan rejects that rather than serving a state nothing can enter.
+
+None of these count time nobody observed. A day without samples is a hole
+in all of them — grey in the bar, absent from every ratio — and the page
+says how many of the window's days it holds whenever that is not all of
+them. A window the table has five days of is not a ninety-day record, and
+silence is the one failure a success ratio would otherwise reward.
 
 ## Machine outputs
 

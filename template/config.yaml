@@ -19,7 +19,7 @@ site:
 
 # All optional; defaults shown.
 page: {}
-#   history_days: 90            # length of the uptime bars
+#   history_days: 90            # length of the uptime bars, and the longest window
 #   outage_log_days: 30         # reach of the incident list
 #   retention_days: 400         # how long the table keeps history
 #   refresh_seconds: 60         # meta-refresh and staleness threshold
@@ -52,9 +52,10 @@ grafana_orgs:
 # plan says so by name if it happens.
 #
 # Optional per check: port and path (defaults per type), frequency_minutes,
-# timeout_seconds, order (page position), latency_budget_ms (exceeded while
-# up shows amber), display (defaults to the host), and alert: false to keep
-# a check off the notification path.
+# timeout_seconds, order (page position), latency_budget_ms (must be under
+# the timeout; the share of executions meeting it drives the amber state),
+# display (defaults to the host), and alert: false to keep a check off the
+# notification path.
 checks:
   - grafana_org: example
     display: Website

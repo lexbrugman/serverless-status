@@ -108,8 +108,8 @@ resource "terraform_data" "manifest_compatibility" {
 
   lifecycle {
     precondition {
-      condition     = alltrue([for manifest in var.check_manifests : manifest.schema_version == 3])
-      error_message = "a check_manifest has a schema_version other than 3 — pin every module to the same ref."
+      condition     = alltrue([for manifest in var.check_manifests : manifest.schema_version == 4])
+      error_message = "a check_manifest has a schema_version other than 4 — pin every module to the same ref."
     }
 
     precondition {

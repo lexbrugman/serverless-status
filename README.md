@@ -22,6 +22,16 @@ choice. The page:
   that fails to validate, shows as down;
 - owns its uptime bars, incident log, and `status.json` independently of
   any vendor's retention;
+- reports availability against that incident log — over 24 hours, 7, 30 and
+  90 days — with the raw probe-success ratio named beside it, because the
+  two routinely disagree and a bare percentage under an uptime bar is read
+  as the first whichever one produced it;
+- judges latency the way it judges availability, against a declared budget
+  and recorded as its own log, and charts it against that budget rather
+  than against itself;
+- shows no degradation a minority of probe locations can raise: every state
+  it displays is a quorum of locations sustained over a window, never an
+  average that one unhappy prober can move;
 - alerts by email through Grafana, provisioned from the same file as the
   checks — upstream of the renderer, so an outage that takes the page down
   still reaches you;

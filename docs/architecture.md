@@ -92,7 +92,7 @@ turns red before it ships.
 
 ## Data model
 
-One DynamoDB table, three item kinds:
+One DynamoDB table, four item kinds:
 
 - `SITE / LATEST` — the last real observation per check, plus how far the
   series has been read. It is the render fallback, and the watermark is
@@ -107,7 +107,14 @@ One DynamoDB table, three item kinds:
   the renderer having been down and carries a probe's timestamp instead of
   a render's. Keyed by the moment it started, which is what makes
   re-reading the series free. The data *is* the incident log: daily ratios
-  cannot show a twenty-minute outage.
+  cannot show a twenty-minute outage. Every availability figure the page
+  prints is measured against these records, so no number on it can
+  disagree with the list beside it.
+- `CHECK#<key> / DEGRADED#<started_at>` — the same record under its own
+  prefix, for time a check was up but past its latency budget. Written by
+  the same walk over a fraction series, so the amber state filters a
+  dissenting probe location exactly as the red one does, and performance
+  is measured the way availability is rather than by a second mechanism.
 
 Prometheus is the source of truth for what happened; the table is the
 durable record of it. The plan this runs on keeps a fortnight of metrics

@@ -14,10 +14,11 @@ variables {
   ]
   # One more than the down list: gw-example-com-ping said alert: false.
   reporting_jobs = [
-    "api-example-com-https",
-    "mx1-example-com-smtp",
-    "gw-example-com-ping",
+    { key = "api-example-com-https", display = "API", target = "api.example.com/health" },
+    { key = "mx1-example-com-smtp", display = "Inbound mail", target = "mx1.example.com" },
+    { key = "gw-example-com-ping", display = "Uplink", target = "gw.example.com" },
   ]
+  page_url             = "https://status.example.com"
   email_addresses      = ["ops@example.com"]
   down_window_multiple = 3
   down_quorum          = 0.5
@@ -168,5 +169,39 @@ run "opting_out_of_paging_does_not_opt_out_of_being_watched" {
       "gw-example-com-ping"
     )
     error_message = "every check is watched for going quiet, opted out or not"
+  }
+}
+
+run "the_notification_names_the_check_and_points_at_the_record" {
+  command = plan
+
+  assert {
+    condition     = strcontains(one(grafana_contact_point.operators.email[*].subject), "{{ if eq .Status \"resolved\" }}Recovered: {{ end }}")
+    error_message = "a recovery announcing itself as an outage is read as a second one"
+  }
+
+  assert {
+    condition     = strcontains(one(grafana_contact_point.operators.email[*].subject), "{{ if eq .CommonLabels.job \"api-example-com-https\" }}API (api.example.com/health){{ end }}")
+    error_message = "the subject must name the check, not the job slug Grafana happens to know it by"
+  }
+
+  assert {
+    condition     = strcontains(one(grafana_contact_point.operators.email[*].message), var.page_url)
+    error_message = "the notification must point at the record it cannot restate"
+  }
+
+  assert {
+    condition     = !strcontains(lower(one(grafana_contact_point.operators.email[*].message)), "duration")
+    error_message = "Grafana times its own window, not the outage; a duration here would contradict the log"
+  }
+
+  assert {
+    condition     = strcontains(grafana_rule_group.down.rule[0].annotations["summary"], "is not responding")
+    error_message = "the summary states what happened before how it was decided"
+  }
+
+  assert {
+    condition     = strcontains(grafana_rule_group.down.rule[0].annotations["summary"], "{{ if eq $labels.job \"mx1-example-com-smtp\" }}Inbound mail (mx1.example.com){{ end }}")
+    error_message = "the summary must name the check that failed"
   }
 }

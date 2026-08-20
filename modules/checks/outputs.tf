@@ -1,9 +1,12 @@
 output "check_manifest" {
   description = "This stack's checks, resolved, for the renderer — the seam between the modules. A page can merge several stacks' manifests, one per Grafana account. schema_version exists so a half-merged ref bump fails at plan time, not as a baffling runtime error."
   value = {
-    schema_version = 3
+    schema_version = 4
     checks = { for k, c in var.checks : k => {
-      display           = c.display
+      display = c.display
+      # Assembled once, in the only place that assembles one, so a
+      # notification naming what a probe hits cannot name it differently.
+      target            = local.targets[k]
       group             = c.group
       type              = c.type
       host              = c.host

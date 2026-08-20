@@ -101,12 +101,12 @@ def validate_status(document: str) -> list[str]:
         ("degraded", bool),
         ("overall", str),
         ("checks", list),
-        ("outages", list),
+        ("incidents", list),
     ]:
         if not isinstance(payload.get(field), kind):
             errors.append(f"status.json {field} missing or not {kind.__name__}")
     for check in payload.get("checks", []):
-        for field in ("key", "display", "group", "state", "uptime_window_days"):
+        for field in ("key", "display", "group", "state", "availability", "window_days"):
             if field not in check:
                 errors.append(f"status.json check missing {field}")
     return errors

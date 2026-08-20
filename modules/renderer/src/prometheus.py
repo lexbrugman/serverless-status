@@ -16,7 +16,10 @@ from datetime import UTC, datetime, timedelta
 # value rather than a verdict over time.
 WINDOW = "15m"
 
-INSTANT_DURATION = f"max by (job) (last_over_time(probe_duration_seconds[{WINDOW}]))"
+# Averaged across probe locations, matching the range query below it: one
+# location's reading is not the page's subject, and the instant number and
+# the sparkline are the same quantity at two resolutions.
+INSTANT_DURATION = f"avg by (job) (last_over_time(probe_duration_seconds[{WINDOW}]))"
 RANGE_DURATION = "avg by (job) (probe_duration_seconds)"
 RANGE_STEP_SECONDS = 900
 RANGE_HOURS = 24
@@ -71,18 +74,49 @@ def _request(credentials: dict, path: str, params: dict) -> dict:
         raise PrometheusError(f"{path}: {error}") from error
 
 
-SUCCESS_FRACTION = (
-    "sum by (job) (probe_success{selector}) / count by (job) (probe_success{selector})"
+# Both sides of a ratio rather than the ratio: the verdict pools them over
+# its window, which is what up_query and the alert rule compute. Dividing
+# per instant and averaging afterwards weights every instant equally, and
+# the two part company whenever the number of reporting locations varies.
+SUCCESS_COUNTS = (
+    "sum by (job) (probe_success{selector})",
+    "count by (job) (probe_success{selector})",
+)
+
+BUDGET_COUNTS = (
+    "sum by (job) (probe_duration_seconds{selector} <= bool {budget})",
+    "count by (job) (probe_duration_seconds{selector})",
 )
 
 
-def fraction_query(jobs: list[str]) -> str:
-    """The share of probe locations reporting success, per instant. The
-    verdict window is applied over these in the renderer rather than in
-    PromQL, because an incident is timestamped from the first failing
-    sample and a windowed expression has already lost it."""
-    selector = f'{{job=~"^({"|".join(sorted(jobs))})$"}}'
-    return SUCCESS_FRACTION.format(selector=selector)
+def budget_counts_queries(jobs: list[str], budget_seconds: float) -> tuple[str, str]:
+    """(locations meeting the budget, locations reporting) per instant.
+
+    A dissenting minority of locations must not read as degradation, and a
+    mean cannot filter a minority — only a quorum can. So the counts are
+    taken per instant here and the verdict applied over a window of them in
+    the renderer, which is the shape the success counts and the incident log
+    already have.
+
+    `bool` is load-bearing for the same reason it is in up_query: without it
+    the comparison filters, and a location that is slow becomes
+    indistinguishable from one nobody heard from.
+    """
+    selector = _selector(jobs)
+    return tuple(part.format(selector=selector, budget=budget_seconds) for part in BUDGET_COUNTS)
+
+
+def _selector(jobs: list[str]) -> str:
+    return f'{{job=~"^({"|".join(sorted(jobs))})$"}}'
+
+
+def success_counts_queries(jobs: list[str]) -> tuple[str, str]:
+    """(locations succeeding, locations reporting) per instant. The verdict
+    window is applied over these in the renderer rather than in PromQL,
+    because an incident is timestamped from the first failing sample and a
+    windowed expression has already lost it."""
+    selector = _selector(jobs)
+    return tuple(part.format(selector=selector) for part in SUCCESS_COUNTS)
 
 
 def day_totals_queries(jobs: list[str], elapsed_seconds: int) -> tuple[str, str]:
@@ -105,6 +139,13 @@ def series(credentials: dict, query: str, start: datetime, end: datetime, step: 
         {"query": query, "start": _epoch(start), "end": _epoch(end), "step": step},
     )
     return parse_matrix(response)
+
+
+def paired_series(
+    credentials: dict, queries: tuple[str, str], start: datetime, end: datetime, step: int
+) -> dict[str, list[tuple[float, float, float]]]:
+    """Both sides of one ratio over the same range, zipped per instant."""
+    return paired(*(series(credentials, query, start, end, step) for query in queries))
 
 
 def instant(credentials: dict, query: str, now: datetime) -> dict[str, float]:
@@ -144,6 +185,19 @@ def parse_vector(response: dict) -> dict[str, float]:
             continue
         parsed[job] = float(series["value"][1])
     return parsed
+
+
+def paired(numerators: dict, denominators: dict) -> dict[str, list[tuple[float, float, float]]]:
+    """Two range results zipped on their timestamps, as (at, met, of).
+
+    An instant present on only one side is dropped: half a sample is not a
+    sample, and a numerator without its denominator has no ratio to pool.
+    """
+    merged = {}
+    for job, points in numerators.items():
+        against = dict(denominators.get(job, []))
+        merged[job] = [(at, value, against[at]) for at, value in points if at in against]
+    return merged
 
 
 def parse_matrix(response: dict) -> dict[str, list[tuple[float, float]]]:

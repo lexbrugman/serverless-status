@@ -8,6 +8,18 @@ from zoneinfo import ZoneInfo
 
 DEFAULT_PORTS = {"https": 443, "http": 80, "smtp": 25}
 
+# Availability windows offered beside the bar's own, in days. One of them
+# is the last 24 hours: a reader arrives asking whether the thing is flaky
+# now, and a ninety-day figure cannot answer that question.
+SHORT_WINDOW_DAYS = (1, 7, 30)
+
+ISO_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+
+
+def utc(moment: datetime) -> datetime:
+    """Naive datetimes are UTC by convention throughout the renderer."""
+    return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
+
 
 def site_today(now: datetime, timezone: str) -> date:
     """The calendar day the page is showing, in the site's own timezone.
@@ -17,15 +29,22 @@ def site_today(now: datetime, timezone: str) -> date:
     clock and its outage log are rendered in — so the bars split where the
     reader's midnight is, not where UTC's happens to be.
     """
-    return now.replace(tzinfo=now.tzinfo or UTC).astimezone(ZoneInfo(timezone)).date()
+    return utc(now).astimezone(ZoneInfo(timezone)).date()
 
 
-def check_state(up: bool | None, latency_ms: float | None, budget_ms: float | None) -> str:
+def check_state(up: bool | None, within_budget: bool | None) -> str:
+    """The pill's verdict.
+
+    Slow is judged the way down is — a quorum of probe locations over a
+    window of instants — so neither state can be entered by a dissenting
+    minority of locations or by a single sample. The page's overall banner
+    is derived from these, so an unfiltered amber carries the whole page.
+    """
     if up is None:
         return "unknown"
     if not up:
         return "down"
-    if budget_ms is not None and latency_ms is not None and latency_ms > budget_ms:
+    if within_budget is False:
         return "slow"
     return "up"
 
@@ -92,31 +111,54 @@ def subtitle(check: dict) -> str:
 
 
 def day_series(rollup_rows: list[dict], history_days: int, today: date) -> list[dict]:
-    """One entry per calendar day ending today, oldest first; ratio None for
-    days without samples."""
+    """One entry per calendar day ending today, oldest first.
+
+    `probe_ratio` is None for a day with no samples, which is the same fact
+    as the day being unobserved: the page can only speak for time it heard
+    something in.
+    """
     by_date = {row["date"]: row for row in rollup_rows}
     days = []
     for offset in range(history_days - 1, -1, -1):
         day = (today - timedelta(days=offset)).isoformat()
         row = by_date.get(day)
-        ratio = None
+        probe_ratio = None
         if row and row["samples"]:
-            ratio = row["successes"] / row["samples"]
-        days.append({"date": day, "ratio": ratio})
+            probe_ratio = row["successes"] / row["samples"]
+        days.append({"date": day, "probe_ratio": probe_ratio})
     return days
 
 
-def window_ratio(days: list[dict], rollup_rows: list[dict]) -> float | None:
-    """Sample-weighted success ratio over the days shown in the bar."""
+def window_totals(days: list[dict], rollup_rows: list[dict]) -> dict:
+    """Probe executions, successes, and the number of days that were
+    observed at all, over the days the bar shows.
+
+    The day count is what keeps the ratio honest. A window the page holds
+    five days of is not a ninety-day record, and a bare percentage has no
+    way of saying so.
+    """
     shown = {d["date"] for d in days}
     samples = successes = 0
     for row in rollup_rows:
         if row["date"] in shown:
             samples += row["samples"]
             successes += row["successes"]
-    if not samples:
+    observed = sum(1 for day in days if day["probe_ratio"] is not None)
+    return {"samples": samples, "successes": successes, "observed_days": observed}
+
+
+def window_ratio(days: list[dict], rollup_rows: list[dict]) -> float | None:
+    """Sample-weighted probe-success ratio over the days shown in the bar.
+
+    This is not availability and is never labelled as it. It counts probe
+    executions, so one location failing while the service answers everyone
+    else counts against it, and a check nobody heard from costs it nothing
+    at all. It is the diagnostic beside the number, not the number.
+    """
+    totals = window_totals(days, rollup_rows)
+    if not totals["samples"]:
         return None
-    return successes / samples
+    return totals["successes"] / totals["samples"]
 
 
 def day_start(today: date, timezone: str) -> datetime:
@@ -129,14 +171,149 @@ def moment(epoch: float) -> datetime:
     return datetime.fromtimestamp(epoch, UTC)
 
 
+def observed_intervals(
+    days: list[dict], timezone: str, now: datetime
+) -> list[tuple[datetime, datetime]]:
+    """One interval per observed day, the last of them clipped to now.
+
+    A day with no samples is a hole, not a quiet day. Time the page never
+    heard from is left out of both sides of every ratio rather than counted
+    as healthy — which is the failure a status page exists to be honest
+    about, and the one a success ratio silently rewards.
+    """
+    now = utc(now)
+    intervals = []
+    for day in days:
+        if day["probe_ratio"] is None:
+            continue
+        start = day_start(date.fromisoformat(day["date"]), timezone)
+        intervals.append((start, min(start + timedelta(days=1), now)))
+    return intervals
+
+
+def _overlap(start_a: datetime, end_a: datetime, start_b: datetime, end_b: datetime) -> float:
+    """Seconds two intervals share; zero when they do not meet."""
+    return max(0.0, (min(end_a, end_b) - max(start_a, start_b)).total_seconds())
+
+
+def share_outside(
+    intervals: list[tuple[datetime, datetime]],
+    records: list[dict],
+    start: datetime,
+    end: datetime,
+    now: datetime,
+) -> float | None:
+    """The share of observed time in [start, end) that no record covers.
+
+    Availability against the outage records, performance against the
+    degraded ones — one measurement, because both kinds of record are
+    written by the same quorum over the same window. Wall-clock against a
+    confirmed log means the bar, the figures beside it, the incident list
+    and the message that woke somebody up all describe the same events.
+    """
+    span = sum(_overlap(s, e, start, end) for s, e in intervals)
+    if not span:
+        return None
+    down = 0.0
+    for record in records:
+        began = parse_iso(record["started_at"])
+        # An outage still open has not been down past the present.
+        ended = utc(now) if record["ended_at"] is None else parse_iso(record["ended_at"])
+        for s, e in intervals:
+            down += _overlap(began, ended, max(s, start), min(e, end))
+    # Every overlap is clipped inside the same intervals the span is summed
+    # over, so downtime cannot exceed it — but float summation can overshoot
+    # by an ulp, and a page reading -0.00% available is worse than one that
+    # refuses to.
+    return max(0.0, 1.0 - down / span)
+
+
+def share_windows(
+    intervals: list[tuple[datetime, datetime]],
+    records: list[dict],
+    now: datetime,
+    history_days: int,
+) -> list[dict]:
+    """The bar's own window plus the shorter ones a reader actually asks
+    about. A short window that is not shorter than the bar's is the bar's,
+    and the same number printed twice is not a second data point."""
+    now = utc(now)
+    spans = [days for days in SHORT_WINDOW_DAYS if days < history_days] + [history_days]
+    return [
+        {
+            "days": span,
+            "ratio": share_outside(intervals, records, now - timedelta(days=span), now, now),
+        }
+        for span in spans
+    ]
+
+
+def current_verdict(
+    series: list[tuple[float, float, float]], window_multiple: int, quorum: float
+) -> bool | None:
+    """The verdict the tail of a sample series supports, or None where there
+    is too little of it to judge.
+
+    The window, quorum and pooling confirmed_transitions uses, so what the
+    pill says now and what the history records about the same samples cannot
+    come apart.
+    """
+    min_samples = max(1, window_multiple - 1)
+    window = series[-window_multiple:]
+    if len(window) < min_samples:
+        return None
+    return sum(met for _, met, _ in window) / sum(of for _, _, of in window) >= quorum
+
+
+def with_shares(
+    days: list[dict],
+    outages: list[dict],
+    degraded: list[dict] | None,
+    timezone: str,
+    now: datetime,
+) -> list[dict]:
+    """Each day's own availability and performance, so every step of the bar
+    is coloured by the definition of the figure standing next to it.
+
+    Non-None for exactly the observed days: an observed day has already
+    started, so its interval always has width. `degraded` is None for a
+    check with no latency budget — no threshold is no opinion, which is not
+    the same fact as never having crossed one.
+    """
+    now = utc(now)
+    enriched = []
+    for day in days:
+        start = day_start(date.fromisoformat(day["date"]), timezone)
+        end = start + timedelta(days=1)
+        intervals = observed_intervals([day], timezone, now)
+        enriched.append(
+            {
+                **day,
+                "availability": share_outside(intervals, outages, start, end, now),
+                "performance": (
+                    None
+                    if degraded is None
+                    else share_outside(intervals, degraded, start, end, now)
+                ),
+            }
+        )
+    return enriched
+
+
 def confirmed_transitions(
-    series: list[tuple[float, float]],
+    series: list[tuple[float, float, float]],
     window_multiple: int,
     quorum: float,
     before: bool | None,
 ) -> list[dict]:
-    """Edges in a raw success series, as the shared definition of down sees
-    them.
+    """Edges in a series of (at, met, of) samples, as the shared definition
+    sees them.
+
+    The window pools both sides — successes over executions, not the mean of
+    per-instant fractions — because that is what up_query asks Prometheus
+    and what the alert rule fires on. Two forms that agree while every
+    instant has the same number of locations reporting are still two forms,
+    and the page and the pager may not answer to different ones.
 
     Reading the series rather than comparing one run against the last is
     what makes an incident survive the renderer being down, and what lets
@@ -153,19 +330,19 @@ def confirmed_transitions(
     min_samples = max(1, window_multiple - 1)
     transitions = []
     current = before
-    window: list[float] = []
+    window: list[tuple[float, float]] = []
     run_start = None
-    run_up = None
-    for at, fraction in series:
-        point_up = fraction >= quorum
-        if point_up != run_up:
-            run_up, run_start = point_up, at
-        window.append(fraction)
+    run_ok = None
+    for at, met, of in series:
+        point_ok = met / of >= quorum
+        if point_ok != run_ok:
+            run_ok, run_start = point_ok, at
+        window.append((met, of))
         if len(window) > window_multiple:
             window.pop(0)
         if len(window) < min_samples:
             continue
-        verdict = sum(window) / len(window) >= quorum
+        verdict = sum(m for m, _ in window) / sum(o for _, o in window) >= quorum
         if current is None:
             current = verdict
             continue
@@ -178,7 +355,12 @@ def confirmed_transitions(
 
 
 def iso(moment: datetime) -> str:
-    return moment.strftime("%Y-%m-%dT%H:%M:%SZ")
+    return moment.strftime(ISO_FORMAT)
+
+
+def parse_iso(text: str) -> datetime:
+    """The inverse of iso(). Stored timestamps are UTC and say so."""
+    return datetime.strptime(text, ISO_FORMAT).replace(tzinfo=UTC)
 
 
 def assemble(
@@ -187,9 +369,11 @@ def assemble(
     now: datetime,
     success: dict[str, float] | None = None,
     duration: dict[str, float] | None = None,
+    budget_samples: dict[str, list] | None = None,
     duration_range: dict[str, list] | None = None,
     rollups: dict[str, list] | None = None,
     outages: dict[str, list] | None = None,
+    degradations: dict[str, list] | None = None,
     previous: dict | None = None,
     today: date | None = None,
     version: str | None = None,
@@ -204,6 +388,7 @@ def assemble(
     site, page = manifest["site"], manifest["page"]
     rollups = rollups or {}
     outages = outages or {}
+    degradations = degradations or {}
     previous_checks = (previous or {}).get("checks", {})
     if today is None:
         today = site_today(now, site["timezone"])
@@ -214,13 +399,19 @@ def assemble(
         if degraded:
             up = cached.get("up")
             latency_ms = cached.get("latency_ms")
+            within_budget = cached.get("within_budget")
         else:
             up = None if success is None or key not in success else success[key] >= 1
             latency_ms = None
             if duration and key in duration:
                 latency_ms = round(duration[key] * 1000)
+            within_budget = current_verdict(
+                (budget_samples or {}).get(key, []),
+                page["down_window_multiple"],
+                page["down_quorum"],
+            )
 
-        state = check_state(up, latency_ms, check.get("latency_budget_ms"))
+        state = check_state(up, within_budget)
 
         since = None
         if up is not None:
@@ -231,7 +422,19 @@ def assemble(
         if not degraded and duration_range and key in duration_range:
             spark = [None if value is None else value * 1000 for _, value in duration_range[key]]
 
-        days = day_series(rollups.get(key, []), page["history_days"], today)
+        rollup_rows = rollups.get(key, [])
+        records = outages.get(key, [])
+        budget = check.get("latency_budget_ms")
+        slow_records = None if budget is None else degradations.get(key, [])
+        days = with_shares(
+            day_series(rollup_rows, page["history_days"], today),
+            records,
+            slow_records,
+            site["timezone"],
+            now,
+        )
+        intervals = observed_intervals(days, site["timezone"], now)
+        totals = window_totals(days, rollup_rows)
         checks.append(
             {
                 "key": key,
@@ -242,30 +445,44 @@ def assemble(
                 "state": state,
                 "up": up,
                 "latency_ms": latency_ms,
+                "latency_budget_ms": budget,
+                "within_budget": within_budget,
                 "since": since,
                 "days": days,
-                "uptime_ratio": window_ratio(days, rollups.get(key, [])),
+                "availability": share_windows(intervals, records, now, page["history_days"]),
+                "performance": (
+                    None
+                    if budget is None
+                    else share_windows(intervals, slow_records, now, page["history_days"])
+                ),
+                "probe_success_ratio": window_ratio(days, rollup_rows),
+                "observed_days": totals["observed_days"],
                 "spark": spark,
             }
         )
 
     display_by_key = {c["key"]: c["display"] for c in checks}
     horizon = now - timedelta(days=page["outage_log_days"])
+    # Both kinds, in one list. A confirmed degradation colours a day and
+    # moves a figure; leaving it out of the log is the one place a reader
+    # could see the page react to something it refuses to name.
     incident_log = []
-    for key, records in outages.items():
-        for record in records:
-            reference = record.get("ended_at") or iso(now)
-            if reference < iso(horizon):
-                continue
-            incident_log.append(
-                {
-                    "key": key,
-                    "display": display_by_key.get(key, key),
-                    "started_at": record["started_at"],
-                    "ended_at": record.get("ended_at"),
-                    "duration_seconds": record.get("duration_seconds"),
-                }
-            )
+    for kind, source in (("down", outages), ("slow", degradations)):
+        for key, records in source.items():
+            for record in records:
+                reference = record.get("ended_at") or iso(now)
+                if reference < iso(horizon):
+                    continue
+                incident_log.append(
+                    {
+                        "key": key,
+                        "kind": kind,
+                        "display": display_by_key.get(key, key),
+                        "started_at": record["started_at"],
+                        "ended_at": record.get("ended_at"),
+                        "duration_seconds": record.get("duration_seconds"),
+                    }
+                )
     incident_log.sort(key=lambda o: o["started_at"], reverse=True)
 
     groups = [
@@ -291,7 +508,7 @@ def assemble(
         "repository": repository,
         "groups": groups,
         "checks": checks,
-        "outages": incident_log,
+        "incidents": incident_log,
     }
 
 
@@ -303,6 +520,7 @@ def snapshot(state: dict) -> dict:
             c["key"]: {
                 "up": c["up"],
                 "latency_ms": c["latency_ms"],
+                "within_budget": c["within_budget"],
                 "since": c["since"],
             }
             for c in state["checks"]

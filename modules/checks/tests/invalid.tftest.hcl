@@ -133,3 +133,22 @@ run "rejects_empty_probe_locations" {
 
   expect_failures = [var.probe_locations]
 }
+
+run "rejects_a_latency_budget_the_timeout_puts_out_of_reach" {
+  command = plan
+
+  variables {
+    checks = {
+      website = {
+        display           = "W"
+        group             = "Web"
+        type              = "https"
+        host              = "www.example.com"
+        timeout_seconds   = 5
+        latency_budget_ms = 5000
+      }
+    }
+  }
+
+  expect_failures = [terraform_data.latency_budgets_are_reachable]
+}

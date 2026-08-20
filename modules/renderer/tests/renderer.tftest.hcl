@@ -66,7 +66,7 @@ variables {
 
   check_manifests = [
     {
-      schema_version = 3
+      schema_version = 4
       checks = {
         website = {
           display           = "Website"
@@ -161,8 +161,8 @@ run "colliding_check_keys_fail_the_plan" {
 
   variables {
     check_manifests = [
-      { schema_version = 3, checks = { website = { group = "Web", order = 10 } } },
-      { schema_version = 3, checks = { website = { group = "Web", order = 10 } } },
+      { schema_version = 4, checks = { website = { group = "Web", order = 10 } } },
+      { schema_version = 4, checks = { website = { group = "Web", order = 10 } } },
     ]
   }
 

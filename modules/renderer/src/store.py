@@ -1,8 +1,8 @@
 """DynamoDB reads and writes; every item shape lives here.
 
 One table, three item kinds: the SITE/LATEST snapshot (overwritten every
-run), daily rollups (atomic ADD so retries cannot double-count), and outage
-records written on transition — the data *is* the incident log.
+run), daily rollups (recomputed whole, so a retry cannot double-count), and
+outage records written on transition — the data *is* the incident log.
 """
 
 from datetime import datetime
@@ -12,6 +12,11 @@ from boto3.dynamodb.conditions import Key
 
 LATEST_PK = "SITE"
 LATEST_SK = "LATEST"
+
+# The two kinds of period the page records. Both are confirmed by the same
+# quorum over the same window, so both filter a dissenting probe location.
+OUTAGE = "OUTAGE"
+DEGRADED = "DEGRADED"
 
 
 def table(name: str, endpoint_url: str | None = None):
@@ -86,24 +91,28 @@ def rollups(tbl, key: str, first_day: str, last_day: str) -> list[dict]:
     ]
 
 
-def open_outage(tbl, key: str, started_at: str, expires_at: int) -> None:
+def open_period(tbl, kind: str, key: str, started_at: str, expires_at: int) -> None:
+    """A period of one state, keyed by the moment it started. Outages and
+    degradations are the same record under different prefixes: both are
+    confirmed by the shared quorum over the shared window, and every figure
+    the page prints about either is measured against these."""
     tbl.put_item(
         Item={
             "PK": f"CHECK#{key}",
-            "SK": f"OUTAGE#{started_at}",
+            "SK": f"{kind}#{started_at}",
             "started_at": started_at,
             "expires_at": expires_at,
         }
     )
 
 
-def close_outage(tbl, key: str, ended_at: str) -> None:
-    """Close the newest still-open outage, deriving the duration from the
-    record's own started_at. A missing open record (first run after a
-    redeploy, or a transition seen twice) is not an error — there is simply
+def close_period(tbl, kind: str, key: str, ended_at: str) -> None:
+    """Close the newest still-open period of this kind, deriving the duration
+    from the record's own started_at. A missing open record (first run after
+    a redeploy, or a transition seen twice) is not an error — there is simply
     nothing to close."""
     response = tbl.query(
-        KeyConditionExpression=Key("PK").eq(f"CHECK#{key}") & Key("SK").begins_with("OUTAGE#"),
+        KeyConditionExpression=Key("PK").eq(f"CHECK#{key}") & Key("SK").begins_with(f"{kind}#"),
         ScanIndexForward=False,
         Limit=5,
     )
@@ -129,12 +138,13 @@ def close_outage(tbl, key: str, ended_at: str) -> None:
             return
 
 
-def outages(tbl, key: str) -> list[dict]:
-    """Every outage record for the check (TTL bounds the set). Windowing is
-    the assembly's job: an ongoing outage older than the log window must
-    still surface, so the read cannot pre-filter by start time."""
+def periods(tbl, kind: str, key: str) -> list[dict]:
+    """Every record of this kind for the check (TTL bounds the set).
+    Windowing is the assembly's job: an ongoing period older than the log
+    window must still surface, so the read cannot pre-filter by start
+    time."""
     response = tbl.query(
-        KeyConditionExpression=Key("PK").eq(f"CHECK#{key}") & Key("SK").begins_with("OUTAGE#"),
+        KeyConditionExpression=Key("PK").eq(f"CHECK#{key}") & Key("SK").begins_with(f"{kind}#"),
     )
     return [
         {

@@ -119,21 +119,59 @@ class TestRenderPage:
         mani = fixtures.manifest()
         built = state.assemble(mani, now=NOW, degraded=True)
         page = render.render_page(built)
-        assert '<span class="ratio">—</span>' in page
+        assert ">— available</span>" in page
+        assert "0 of 90 days observed" in page
         assert 'class="latency"' not in page
         assert 'class="spark"' not in page
-        assert "No outages in the last 30 days." in page
+        assert "No incidents in the last 30 days." in page
+
+    def test_only_a_budgeted_check_states_its_compliance(self):
+        page = render.render_page(fixtures.build_state("all-green", NOW))
+        assert "within budget" in page
+        assert "budget 800 ms" in page
+        # One visible compliance line, for the one check that declared a
+        # budget; the rest of the figures are behind the disclosure.
+        assert page.count("within budget</span>") == 1
+        assert page.count("<summary>detail</summary>") == 9
+
+    def test_full_coverage_states_no_qualifier(self):
+        """A window the page holds every day of needs none, and a note that
+        appears regardless is a number that means nothing."""
+        page = render.render_page(fixtures.build_state("all-green", NOW))
+        assert "90 of 90 days observed" in page
+        assert page.count("90 of 90 days observed") == 9
+        assert "<span>90 days ago</span><span>today</span>" in page
+
+    def test_a_slow_check_reads_slow(self):
+        page = render.render_page(fixtures.build_state("degraded-slow", NOW))
+        assert 'class="pill p-slow"' in page
+        assert "Degraded performance" in page
+
+    def test_both_numbers_are_named_and_may_disagree(self):
+        page = render.render_page(fixtures.build_state("all-green", NOW))
+        assert "availability · 24h: " in page
+        assert "probe success: " in page
+        assert "90 of 90 days observed" in page
+        assert 'title="share of observed time with no confirmed outage' in page
 
 
 class TestRenderStatus:
     def test_schema_and_content(self):
         status = json.loads(render.render_status(fixtures.build_state("one-down", NOW)))
-        assert status["schema_version"] == 1
+        assert status["schema_version"] == 2
         assert status["generated_at"] == "2026-08-14T12:00:00Z"
         assert status["degraded"] is False
         assert status["overall"] == "partial_outage"
         by_key = {c["key"]: c for c in status["checks"]}
         assert by_key["mail-inbound"]["state"] == "down"
         assert by_key["mail-inbound"]["type"] == "smtp"
-        assert by_key["website"]["uptime_window_days"] == 90
-        assert status["outages"][0]["ended_at"] is None
+        assert by_key["website"]["window_days"] == 90
+        assert by_key["website"]["observed_days"] == 90
+        assert [w["days"] for w in by_key["website"]["availability"]] == [1, 7, 30, 90]
+        assert by_key["website"]["probe_success_ratio"] <= 1.0
+        assert by_key["website"]["latency_budget_ms"] is None
+        assert by_key["api"]["latency_budget_ms"] == 800
+        assert [w["days"] for w in by_key["api"]["performance"]] == [1, 7, 30, 90]
+        assert by_key["website"]["performance"] is None
+        assert status["incidents"][0]["ended_at"] is None
+        assert {i["kind"] for i in status["incidents"]} <= {"down", "slow"}

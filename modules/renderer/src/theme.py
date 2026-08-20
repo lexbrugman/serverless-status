@@ -49,8 +49,10 @@ OVERALL_STATES = {
     "unknown": {"label": "Awaiting first data", "fill": "neutral"},
 }
 
-# A day in the uptime bar reads ok only at 100% success: a single failed
-# probe out of ~288 is exactly the kind of blip the bar exists to surface.
+# A day reads clean only at 100%: a single failed probe out of ~288 is
+# exactly the kind of blip the bar exists to surface, and the amber step is
+# where it surfaces. Below DAY_WARN — roughly seven minutes of a day — a
+# confirmed outage is long enough to be the day's headline.
 DAY_OK = 1.0
 DAY_WARN = 0.995
 
@@ -67,14 +69,24 @@ def css_variables(mode: str) -> str:
     return "".join(f"--{role.replace('_', '-')}:{color(role, mode)};" for role in PALETTE)
 
 
-def day_state(ratio: float | None) -> str:
-    if ratio is None:
+def day_state(day: dict) -> str:
+    """The colour of one day in the bar.
+
+    Every coloured step follows a confirmed period, written by the quorum
+    over the window both states share. So no colour can be raised by a
+    dissenting minority of probe locations or by a single sample, and none
+    can contradict the figures beside it or the message the pager sent.
+    Grey is time nobody observed, which is neither state.
+    """
+    if day["probe_ratio"] is None:
         return "unknown"
-    if ratio >= DAY_OK:
-        return "up"
-    if ratio >= DAY_WARN:
+    if day["availability"] < DAY_WARN:
+        return "down"
+    if day["availability"] < DAY_OK:
         return "slow"
-    return "down"
+    if day["performance"] is not None and day["performance"] < DAY_OK:
+        return "slow"
+    return "up"
 
 
 def uptime_bar(days: list[dict]) -> str:
@@ -85,29 +97,48 @@ def uptime_bar(days: list[dict]) -> str:
     width = len(days) * step - gap
     rects = []
     for i, day in enumerate(days):
-        state = day_state(day["ratio"])
-        if day["ratio"] is None:
+        state = day_state(day)
+        if day["probe_ratio"] is None:
             tip = f"{day['date']} — no data"
         else:
-            tip = f"{day['date']} — {day['ratio']:.2%}"
+            tip = (
+                f"{day['date']} — {day['availability']:.2%} available, "
+                f"{day['probe_ratio']:.2%} of probes succeeded"
+            )
+            if day["performance"] is not None:
+                tip += f", {day['performance']:.2%} within budget"
         rects.append(
             f'<rect class="d-{state}" x="{i * step}" y="0" width="{step - gap}" height="28" '
             f'rx="1"><title>{html.escape(tip)}</title></rect>'
         )
     return (
         f'<svg class="bar" viewBox="0 0 {width} 28" preserveAspectRatio="none" '
-        f'role="img" aria-label="daily uptime, oldest to newest">{"".join(rects)}</svg>'
+        f'role="img" aria-label="daily availability, oldest to newest">{"".join(rects)}</svg>'
     )
 
 
-def sparkline(points: list[float | None], width: int = 120, height: int = 28) -> str:
-    """A single path over the 24h latency series, normalised to the series
-    max. No axes; it is a shape, not a chart.
+def sparkline(
+    points: list[float | None],
+    width: int = 120,
+    height: int = 28,
+    budget_ms: float | None = None,
+) -> str:
+    """A single path over the 24h latency series. No axes; it is a shape,
+    not a chart — except where a budget is declared, which is the one level
+    the shape has to be read against.
+
+    A series normalised to its own maximum fills the box whatever its
+    magnitude, so a slow day and a fast day draw identically. Scaling to
+    the budget instead is what makes the distance to it visible, and the
+    guide line is where the amber state begins.
     """
     values = [v for v in points if v is not None]
     if len(values) < 2:
         return ""
-    top = max(values) or 1.0
+    top = max(values)
+    if budget_ms is not None:
+        top = max(top, budget_ms)
+    top = top or 1.0
     pad = 2
     span = height - 2 * pad
     coords = []
@@ -119,11 +150,17 @@ def sparkline(points: list[float | None], width: int = 120, height: int = 28) ->
         y = pad + span * (1 - v / top)
         coords.append(f"{x:.1f},{y:.1f}")
     path = "M" + " L".join(coords)
+    guide = ""
+    label = "24-hour latency"
+    if budget_ms is not None:
+        edge = pad + span * (1 - budget_ms / top)
+        guide = f'<line class="spark-budget" x1="0" y1="{edge:.1f}" x2="{width}" y2="{edge:.1f}"/>'
+        label = f"24-hour latency against a {budget_ms:.0f} ms budget"
     return (
         f'<svg class="spark" viewBox="0 0 {width} {height}" role="img" '
-        f'aria-label="24-hour latency">'
+        f'aria-label="{label}">'
         f'<line class="spark-base" x1="0" y1="{height - 1}" x2="{width}" y2="{height - 1}"/>'
-        f'<path d="{path}" fill="none"/></svg>'
+        f'{guide}<path d="{path}" fill="none"/></svg>'
     )
 
 

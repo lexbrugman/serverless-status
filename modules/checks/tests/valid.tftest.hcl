@@ -136,8 +136,8 @@ run "manifest_and_outputs" {
   }
 
   assert {
-    condition     = output.check_manifest.schema_version == 3
-    error_message = "manifest schema_version must be 3"
+    condition     = output.check_manifest.schema_version == 4
+    error_message = "manifest schema_version must be 4"
   }
 
   # The renderer makes its verdict over a window that is a multiple of the

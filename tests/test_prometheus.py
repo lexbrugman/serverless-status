@@ -68,7 +68,10 @@ class TestUpQuery:
         '|mx1-example-com-smtp)$"}[15m])) >= 2)'
     )
 
-    def test_matches_the_alert_rule(self):
+    def test_matches_its_pinned_literal(self):
+        """This pins the renderer's half only. What ties it to the alert
+        rule is scripts/check-cross-layer.py, which compares this literal to
+        the one the rule's own test states."""
         query = prometheus.up_query(["mx1-example-com-smtp", "api-example-com-https"], 5, 3, 0.5)
         assert query == self.EXPECTED
 

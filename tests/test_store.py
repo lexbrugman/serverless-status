@@ -80,9 +80,9 @@ class TestRollups:
 
 class TestOutages:
     def test_open_then_close_derives_duration(self, tbl):
-        store.open_outage(tbl, "mail", "2026-08-14T11:37:00Z", 1)
-        store.close_outage(tbl, "mail", "2026-08-14T11:50:00Z")
-        records = store.outages(tbl, "mail")
+        store.open_period(tbl, store.OUTAGE, "mail", "2026-08-14T11:37:00Z", 1)
+        store.close_period(tbl, store.OUTAGE, "mail", "2026-08-14T11:50:00Z")
+        records = store.periods(tbl, store.OUTAGE, "mail")
         assert records == [
             {
                 "started_at": "2026-08-14T11:37:00Z",
@@ -92,20 +92,37 @@ class TestOutages:
         ]
 
     def test_close_without_open_record_is_a_noop(self, tbl):
-        store.close_outage(tbl, "mail", "2026-08-14T11:50:00Z")
-        assert store.outages(tbl, "mail") == []
+        store.close_period(tbl, store.OUTAGE, "mail", "2026-08-14T11:50:00Z")
+        assert store.periods(tbl, store.OUTAGE, "mail") == []
 
     def test_close_skips_already_closed_records(self, tbl):
-        store.open_outage(tbl, "mail", "2026-08-14T09:00:00Z", 1)
-        store.close_outage(tbl, "mail", "2026-08-14T09:10:00Z")
-        store.close_outage(tbl, "mail", "2026-08-14T11:50:00Z")
-        records = store.outages(tbl, "mail")
+        store.open_period(tbl, store.OUTAGE, "mail", "2026-08-14T09:00:00Z", 1)
+        store.close_period(tbl, store.OUTAGE, "mail", "2026-08-14T09:10:00Z")
+        store.close_period(tbl, store.OUTAGE, "mail", "2026-08-14T11:50:00Z")
+        records = store.periods(tbl, store.OUTAGE, "mail")
         assert len(records) == 1
         assert records[0]["duration_seconds"] == 600
 
+    def test_the_two_kinds_of_period_do_not_collide(self, tbl):
+        """One record shape under two prefixes: a degradation is not an
+        outage, and neither read may see the other."""
+        store.open_period(tbl, store.OUTAGE, "website", "2026-08-14T10:00:00Z", 1)
+        store.open_period(tbl, store.DEGRADED, "website", "2026-08-14T11:00:00Z", 1)
+        outages = store.periods(tbl, store.OUTAGE, "website")
+        degraded = store.periods(tbl, store.DEGRADED, "website")
+        assert [r["started_at"] for r in outages] == ["2026-08-14T10:00:00Z"]
+        assert [r["started_at"] for r in degraded] == ["2026-08-14T11:00:00Z"]
+
+    def test_closing_one_kind_leaves_the_other_open(self, tbl):
+        store.open_period(tbl, store.OUTAGE, "website", "2026-08-14T10:00:00Z", 1)
+        store.open_period(tbl, store.DEGRADED, "website", "2026-08-14T10:00:00Z", 1)
+        store.close_period(tbl, store.DEGRADED, "website", "2026-08-14T10:30:00Z")
+        assert store.periods(tbl, store.OUTAGE, "website")[0]["ended_at"] is None
+        assert store.periods(tbl, store.DEGRADED, "website")[0]["duration_seconds"] == 1800
+
     def test_ongoing_outage_is_returned_open(self, tbl):
-        store.open_outage(tbl, "mail", "2026-08-14T11:37:00Z", 1)
-        records = store.outages(tbl, "mail")
+        store.open_period(tbl, store.OUTAGE, "mail", "2026-08-14T11:37:00Z", 1)
+        records = store.periods(tbl, store.OUTAGE, "mail")
         assert records[0]["ended_at"] is None
         assert records[0]["duration_seconds"] is None
 

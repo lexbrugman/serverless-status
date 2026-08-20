@@ -36,7 +36,14 @@ class PrometheusHandler(BaseHTTPRequestHandler):
         params = parse_qs(parsed.query)
         query = params.get("query", [""])[0]
         if parsed.path == "/api/v1/query_range":
-            key = "success_series" if "probe_success" in query else "duration_range"
+            if "probe_success" in query:
+                key = "success_met" if query.startswith("sum") else "success_of"
+            elif "<= bool " in query:
+                key = "budget_met"
+            elif query.startswith("count by (job) (probe_duration_seconds"):
+                key = "budget_of"
+            else:
+                key = "duration_range"
         elif ">= bool " in query:
             key = "success"
         elif query.startswith("sum by (job) (count_over_time"):

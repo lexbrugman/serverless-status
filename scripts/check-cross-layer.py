@@ -8,6 +8,7 @@ mirror is pinned here so a half-landed change fails lint (AGENTS.md: define
 once and derive; a mirror is the fallback, never the default).
 """
 
+import ast
 import re
 import sys
 from pathlib import Path
@@ -84,6 +85,34 @@ METRIC_FIELDS = [
 DOWN_MODULE = "modules/renderer/variables.tf"
 DOWN_ROOT = "template/tofu/main.tf"
 
+# The renderer's up_query and the alert rule's expression are one PromQL
+# string written twice, and each layer's own test pins its own copy — which
+# catches an edit to that layer and nothing at all about the other. This is
+# what compares them: the page and the pager answer to one definition of
+# down, or they eventually tell different stories about the same check.
+QUERY_PYTHON = "tests/test_prometheus.py"
+QUERY_HCL = "modules/alerting/tests/alerting.tftest.hcl"
+
+
+def read_renderer_query() -> str:
+    """The literal the renderer's own test pins up_query to."""
+    tree = ast.parse((ROOT / QUERY_PYTHON).read_text())
+    for node in ast.walk(tree):
+        targets = getattr(node, "targets", [])
+        if any(isinstance(target, ast.Name) and target.id == "EXPECTED" for target in targets):
+            return ast.literal_eval(node.value)
+    sys.exit(f"ERROR: no EXPECTED literal in {QUERY_PYTHON} — expected the pinned up_query.")
+
+
+def read_rule_query() -> str:
+    """The literal the alert rule's own test pins its expression to."""
+    text = (ROOT / QUERY_HCL).read_text()
+    joined = re.search(r'\.expr == join\("", \[(.*?)\n\s*\]\)', text, re.DOTALL)
+    if not joined:
+        sys.exit(f"ERROR: no joined rule expression in {QUERY_HCL}.")
+    parts = re.findall(r'"((?:[^"\\]|\\.)*)"', joined.group(1))
+    return "".join(part.replace('\\"', '"') for part in parts)
+
 
 def read_role_names() -> dict[str, str]:
     names = {}
@@ -159,6 +188,14 @@ def main() -> None:
                 f"{METRIC_RULES}: no rule queries {published}, which is what "
                 f"{METRIC_SOURCE} publishes for {description}"
             )
+
+    renderer_query = read_renderer_query()
+    rule_query = read_rule_query()
+    if renderer_query != rule_query:
+        failures.append(
+            f"the renderer asks Prometheus {renderer_query!r} ({QUERY_PYTHON}) "
+            f"but the alert rule asks {rule_query!r} ({QUERY_HCL})"
+        )
 
     if failures:
         sys.exit("ERROR: cross-layer mirrors disagree:\n  " + "\n  ".join(failures))

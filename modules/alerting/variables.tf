@@ -12,13 +12,22 @@ variable "down_jobs" {
 }
 
 variable "reporting_jobs" {
-  description = "Every check the renderer reports on, including those that opted out of down-alerting. Opting out says a failure of the thing is not worth a page; it does not say a failure of the monitoring is, and a check nobody is running is the second."
-  type        = list(string)
+  description = "Every check the renderer reports on, including those that opted out of down-alerting. Opting out says a failure of the thing is not worth a page; it does not say a failure of the monitoring is, and a check nobody is running is the second. The display name and target travel with the key because Grafana knows only the job label, and a notification naming a slug tells its reader less than the page they would have to open anyway."
+  type = list(object({
+    key     = string
+    display = string
+    target  = string
+  }))
 
   validation {
     condition     = length(var.reporting_jobs) > 0
     error_message = "alerting needs at least one check to watch."
   }
+}
+
+variable "page_url" {
+  description = "Where the status page is served. A notification points at it rather than restating what it holds: the page stamps an outage at the sample it began, while Grafana can only know when its own window filled, so any duration stated here would contradict the record."
+  type        = string
 }
 
 variable "prometheus" {

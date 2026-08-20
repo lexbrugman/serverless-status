@@ -103,7 +103,11 @@ module "alerting_example" {
     { key = key, frequency_minutes = check.frequency_minutes }
     if contains(module.routing.org_alert_jobs["example"], key)
   ]
-  reporting_jobs       = keys(module.checks_example.check_manifest.checks)
+  reporting_jobs = [
+    for key, check in module.checks_example.check_manifest.checks :
+    { key = key, display = check.display, target = check.target }
+  ]
+  page_url             = "https://${local.config.domain}"
   prometheus           = module.checks_example.prometheus
   email_addresses      = local.alerting.email_addresses
   down_window_multiple = local.page.down_window_multiple

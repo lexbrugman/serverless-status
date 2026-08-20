@@ -15,27 +15,58 @@ class TestColors:
             assert f"--{role.replace('_', '-')}:" in light
 
 
+def _day(
+    date: str,
+    probe_ratio: float | None,
+    availability: float | None,
+    performance: float | None = None,
+) -> dict:
+    return {
+        "date": date,
+        "probe_ratio": probe_ratio,
+        "availability": availability,
+        "performance": performance,
+    }
+
+
 class TestDayState:
-    def test_thresholds(self):
-        assert theme.day_state(None) == "unknown"
-        assert theme.day_state(1.0) == "up"
-        assert theme.day_state(0.999) == "slow"
-        assert theme.day_state(0.995) == "slow"
-        assert theme.day_state(0.99) == "down"
+    def test_a_day_nobody_observed_is_grey(self):
+        assert theme.day_state(_day("2026-08-14", None, None)) == "unknown"
+
+    def test_a_confirmed_outage_leads_the_day(self):
+        assert theme.day_state(_day("2026-08-14", 0.99, 0.99)) == "down"
+
+    def test_a_brief_outage_reads_amber(self):
+        assert theme.day_state(_day("2026-08-14", 1.0, 0.999)) == "slow"
+
+    def test_probe_noise_the_log_never_confirmed_does_not_colour_the_day(self):
+        """A dissenting minority of probe locations reaches no record, so it
+        reaches no colour either."""
+        assert theme.day_state(_day("2026-08-14", 0.996, 1.0)) == "up"
+
+    def test_a_confirmed_degradation_reads_amber(self):
+        assert theme.day_state(_day("2026-08-14", 1.0, 1.0, 0.98)) == "slow"
+
+    def test_a_clean_day_is_green(self):
+        assert theme.day_state(_day("2026-08-14", 1.0, 1.0)) == "up"
+        assert theme.day_state(_day("2026-08-14", 1.0, 1.0, 1.0)) == "up"
 
 
 class TestUptimeBar:
     def test_one_rect_per_day_with_tooltips(self):
         days = [
-            {"date": "2026-08-12", "ratio": 1.0},
-            {"date": "2026-08-13", "ratio": None},
-            {"date": "2026-08-14", "ratio": 0.9931},
+            _day("2026-08-12", 1.0, 1.0),
+            _day("2026-08-13", None, None),
+            _day("2026-08-14", 0.9931, 0.98, 0.95),
         ]
         bar = theme.uptime_bar(days)
         assert bar.count("<rect") == 3
         assert 'class="d-up"' in bar and 'class="d-unknown"' in bar and 'class="d-down"' in bar
         assert "<title>2026-08-13 — no data</title>" in bar
-        assert "<title>2026-08-14 — 99.31%</title>" in bar
+        assert (
+            "<title>2026-08-14 — 98.00% available, 99.31% of probes succeeded, "
+            "95.00% within budget</title>" in bar
+        )
 
 
 class TestSparkline:
@@ -51,6 +82,21 @@ class TestSparkline:
     def test_gaps_are_skipped_not_zeroed(self):
         svg = theme.sparkline([100.0, None, 100.0])
         assert svg.count("L") == 1
+
+    def test_a_budget_scales_the_series_and_draws_its_guide(self):
+        """A self-normalised series fills the box whatever its magnitude, so
+        the level only becomes readable against a declared budget."""
+        svg = theme.sparkline([100.0, 200.0], width=100, height=28, budget_ms=400.0)
+        assert 'class="spark-budget"' in svg and 'y1="2.0"' in svg
+        assert 'd="M0.0,20.0 L100.0,14.0"' in svg
+        assert 'aria-label="24-hour latency against a 400 ms budget"' in svg
+
+    def test_a_series_past_its_budget_crosses_the_guide(self):
+        svg = theme.sparkline([100.0, 800.0], budget_ms=400.0)
+        assert 'y1="14.0"' in svg
+
+    def test_without_a_budget_there_is_no_guide(self):
+        assert "spark-budget" not in theme.sparkline([1.0, 2.0])
 
     def test_all_zero_series_does_not_divide_by_zero(self):
         assert "NaN" not in theme.sparkline([0.0, 0.0])

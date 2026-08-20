@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 
 import theme
 
-STATUS_SCHEMA_VERSION = 1
+STATUS_SCHEMA_VERSION = 2
 
 
 def _esc(value) -> str:
@@ -47,6 +47,42 @@ def humanize_duration(seconds: float | None) -> str:
         return f"{hours} h {rest} min" if rest else f"{hours} h"
     rest = hours % 24
     return f"{days} d {rest} h" if rest else f"{days} d"
+
+
+def _percent(ratio: float | None) -> str:
+    return f"{ratio:.2%}" if ratio is not None else "—"
+
+
+def _window_label(days: int) -> str:
+    """A single day is the window a reader counts in hours."""
+    return "24h" if days == 1 else f"{days}d"
+
+
+def _window_line(label: str, windows: list[dict]) -> str:
+    text = " · ".join(
+        [label] + [f"{_window_label(w['days'])}: {_percent(w['ratio'])}" for w in windows]
+    )
+    return f'<div class="windows"><span>{text}</span></div>'
+
+
+def _detail(check: dict, history_days: int) -> str:
+    """The shorter windows and the raw probe ratio, one interaction away.
+
+    A status page answers "is it working" first, and the figures that
+    answer "how do you know" are a different question — beside the answer
+    they crowd it out, and a reader cannot tell which of nine percentages
+    was the one to read. <details> discloses them with no script, which the
+    zero-dependency rule requires and a phone needs.
+    """
+    lines = [_window_line("availability", check["availability"])]
+    if check["latency_budget_ms"] is not None:
+        lines.append(_window_line("within budget", check["performance"]))
+    lines.append(
+        '<div class="windows">'
+        f"<span>probe success: {_percent(check['probe_success_ratio'])}</span>"
+        f"<span>{check['observed_days']} of {history_days} days observed</span></div>"
+    )
+    return f'<details class="more"><summary>detail</summary>{"".join(lines)}</details>'
 
 
 def _css(page: dict, accent: str) -> str:
@@ -90,6 +126,7 @@ h1{{font-size:22px;font-weight:650;letter-spacing:-.01em}}
 .spark{{width:96px;height:24px;overflow:visible}}
 .spark path{{stroke:var(--ink-muted);stroke-width:1.8;stroke-linejoin:round}}
 .spark-base{{stroke:var(--border)}}
+.spark-budget{{stroke:var(--warn);stroke-width:1;stroke-dasharray:2 2}}
 .pill{{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 10px;
   font-size:13px;font-weight:600}}
 .pill .glyph{{width:10px;height:10px;fill:currentColor}}
@@ -103,13 +140,18 @@ h1{{font-size:22px;font-weight:650;letter-spacing:-.01em}}
 .d-up{{fill:var(--ok)}}.d-slow{{fill:var(--warn)}}.d-down{{fill:var(--critical)}}
 .d-unknown{{fill:var(--neutral);opacity:.45}}
 .ratio{{font-size:13px;color:var(--ink-secondary);font-variant-numeric:tabular-nums;
-  min-width:56px;text-align:right}}
+  text-align:right;white-space:nowrap}}
 .bar-caption{{display:flex;justify-content:space-between;color:var(--ink-muted);
   font-size:11px;margin-top:4px}}
+.windows{{display:flex;justify-content:space-between;flex-wrap:wrap;gap:2px 16px;
+  color:var(--ink-muted);font-size:11px;font-variant-numeric:tabular-nums;margin-top:2px}}
+.more{{margin-top:2px}}
+.more summary{{color:var(--ink-muted);font-size:11px;cursor:pointer;width:fit-content}}
 .outages ul{{list-style:none;padding:0}}
 .outages li{{display:flex;gap:10px;align-items:baseline;padding:10px 2px;flex-wrap:wrap;
   border-top:1px solid var(--border);font-size:14px}}
 .outages li:first-child{{border-top:0}}
+.outages .pill{{font-size:11px;padding:1px 8px}}
 .outages .when{{color:var(--ink-secondary);font-variant-numeric:tabular-nums}}
 .outages .dur{{margin-left:auto;color:var(--ink-secondary)}}
 .dur.open{{color:var(--critical-text);font-weight:600}}
@@ -123,12 +165,36 @@ footer .sep{{opacity:.6}}
 
 def _row(check: dict, page: dict) -> str:
     meta = theme.CHECK_STATES[check["state"]]
-    spark = theme.sparkline(check["spark"]) if check["spark"] else ""
+    spark = ""
+    if check["spark"]:
+        spark = theme.sparkline(check["spark"], budget_ms=check["latency_budget_ms"])
     latency = ""
     if check["latency_ms"] is not None:
         latency = f'<span class="latency">{check["latency_ms"]} ms</span>'
-    ratio = check["uptime_ratio"]
-    ratio_text = f"{ratio:.2%}" if ratio is not None else "—"
+    history_days = page["history_days"]
+    # The number beside the bar carries its own name: a bare percentage
+    # there is read as availability whatever produced it, and the rest of
+    # the figures answer a question the reader has not asked yet.
+    full = {window["days"]: window["ratio"] for window in check["availability"]}
+    headline = f"{_percent(full[history_days])} available"
+    definition = f"share of observed time with no confirmed outage, over {history_days} days"
+
+    # Worth stating only where it is not the whole window. A record the page
+    # holds every day of needs no qualifier, and one that carries the note
+    # anyway is a number saying nothing nine times out of ten.
+    coverage = ""
+    if check["observed_days"] < history_days:
+        coverage = f"<span>{check['observed_days']} of {history_days} days observed</span>"
+
+    # Only for a check that declared a budget: without one there is no
+    # threshold to have met, and an empty line says nothing.
+    compliance_line = ""
+    if check["latency_budget_ms"] is not None:
+        within = {window["days"]: window["ratio"] for window in check["performance"]}
+        compliance_line = (
+            f'<div class="windows"><span>{_percent(within[history_days])} within budget</span>'
+            f"<span>budget {check['latency_budget_ms']:.0f} ms</span></div>"
+        )
     # The tag is what tells two checks on one host apart; the subtitle is
     # empty whenever the address says no more than the name does.
     subtitle = ""
@@ -143,19 +209,24 @@ def _row(check: dict, page: dict) -> str:
     <span class="pill p-{check["state"]}">{theme.state_glyph(check["state"])}{meta["label"]}</span>
   </div>
 </div>
-<div class="row-bar">{theme.uptime_bar(check["days"])}<span class="ratio">{ratio_text}</span></div>
-<div class="bar-caption"><span>{page["history_days"]} days ago</span><span>today</span></div>
-</article>"""
+<div class="row-bar">{theme.uptime_bar(check["days"])}\
+<span class="ratio" title="{_esc(definition)}">{headline}</span></div>
+<div class="bar-caption"><span>{history_days} days ago</span>{coverage}<span>today</span></div>
+{compliance_line}{_detail(check, history_days)}</article>"""
 
 
-def _outage_item(outage: dict, timezone: str) -> str:
-    started = _short_time(outage["started_at"], timezone)
-    if outage["ended_at"]:
-        duration = f'<span class="dur">{humanize_duration(outage["duration_seconds"])}</span>'
+def _incident_item(incident: dict, timezone: str) -> str:
+    started = _short_time(incident["started_at"], timezone)
+    if incident["ended_at"]:
+        duration = f'<span class="dur">{humanize_duration(incident["duration_seconds"])}</span>'
     else:
         duration = '<span class="dur open">ongoing</span>'
+    # The pill the check itself wears, so a reader scanning the list sorts
+    # outages from slowdowns by a colour they have already learned.
+    kind = incident["kind"]
     return (
-        f'<li><span class="name">{_esc(outage["display"])}</span>'
+        f'<li><span class="name">{_esc(incident["display"])}</span>'
+        f'<span class="pill p-{kind}">{theme.CHECK_STATES[kind]["label"]}</span>'
         f'<span class="when">{started}</span>{duration}</li>'
     )
 
@@ -189,11 +260,13 @@ def render_page(state: dict) -> str:
             f'<div class="card">{rows}</div></section>'
         )
 
-    if state["outages"]:
-        items = "".join(_outage_item(o, timezone) for o in state["outages"])
-        outage_body = f"<ul>{items}</ul>"
+    if state["incidents"]:
+        items = "".join(_incident_item(i, timezone) for i in state["incidents"])
+        incident_body = f"<ul>{items}</ul>"
     else:
-        outage_body = f'<p class="empty">No outages in the last {page["outage_log_days"]} days.</p>'
+        incident_body = (
+            f'<p class="empty">No incidents in the last {page["outage_log_days"]} days.</p>'
+        )
 
     links = [
         f'<a href="{_esc(link["url"])}">{_esc(link["label"])}</a>'
@@ -253,7 +326,7 @@ def render_page(state: dict) -> str:
 rendered {updated} and normally refreshes every {page["refresh_seconds"]} seconds.</div>
 {degraded_notice}
 {"".join(groups)}
-<section class="outages group"><h3>Recent outages</h3>{outage_body}</section>
+<section class="outages group"><h3>Recent incidents</h3>{incident_body}</section>
 <footer>{footer}</footer>
 </main>
 <script>{script}</script>
@@ -275,20 +348,30 @@ def render_status(state: dict) -> str:
             "type": c["type"],
             "state": c["state"],
             "latency_ms": c["latency_ms"],
-            "uptime_ratio": c["uptime_ratio"],
-            "uptime_window_days": state["page"]["history_days"],
+            # Availability is time-weighted against the incident log; probe
+            # success counts executions. Separate names because they answer
+            # different questions and routinely disagree.
+            "availability": c["availability"],
+            "probe_success_ratio": c["probe_success_ratio"],
+            # Compliance is only meaningful against a declared budget, and
+            # the budget travels with it so a consumer need not guess.
+            "latency_budget_ms": c["latency_budget_ms"],
+            "performance": c["performance"],
+            "observed_days": c["observed_days"],
+            "window_days": state["page"]["history_days"],
             "last_change": c["since"],
         }
         for c in state["checks"]
     ]
-    outages = [
+    incidents = [
         {
-            "key": o["key"],
-            "started_at": o["started_at"],
-            "ended_at": o["ended_at"],
-            "duration_seconds": o["duration_seconds"],
+            "key": i["key"],
+            "kind": i["kind"],
+            "started_at": i["started_at"],
+            "ended_at": i["ended_at"],
+            "duration_seconds": i["duration_seconds"],
         }
-        for o in state["outages"]
+        for i in state["incidents"]
     ]
     return json.dumps(
         {
@@ -297,7 +380,7 @@ def render_status(state: dict) -> str:
             "degraded": state["degraded"],
             "overall": state["overall"],
             "checks": checks,
-            "outages": outages,
+            "incidents": incidents,
         },
         indent=2,
     )
