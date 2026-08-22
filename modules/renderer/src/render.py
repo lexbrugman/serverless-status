@@ -8,12 +8,17 @@ the thing it reports on.
 
 import html
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import theme
 
-STATUS_SCHEMA_VERSION = 2
+# By name, not as a module: `state` is the parameter every renderer here
+# takes. One definition of what falls inside a window, shared with the
+# assembly that wrote the log.
+from state import in_window, parse_iso
+
+STATUS_SCHEMA_VERSION = 3
 
 
 def _esc(value) -> str:
@@ -66,23 +71,64 @@ def _window_line(label: str, windows: list[dict]) -> str:
 
 
 def _detail(check: dict, history_days: int) -> str:
-    """The shorter windows and the raw probe ratio, one interaction away.
+    """The shorter windows, one interaction away.
 
     A status page answers "is it working" first, and the figures that
     answer "how do you know" are a different question — beside the answer
     they crowd it out, and a reader cannot tell which of nine percentages
     was the one to read. <details> discloses them with no script, which the
-    zero-dependency rule requires and a phone needs.
+    zero-dependency rule requires and a phone needs; script only remembers
+    which one was open, and its absence costs the reader the memory, never
+    the figures.
+
+    Every figure here is measured against the confirmed log, the same way
+    the bar and the incident list are. The probe-success ratio used to
+    stand among them and no longer does: it counts executions, so a
+    minority of locations failing while the quorum reads up moved it
+    without moving anything else on the page. Several locations are how
+    the verdict is made, not something the reader is meant to audit — the
+    ratio described the instrument, and a reader has no way to tell an
+    instrument's noise floor from a service's. It stays in status.json,
+    where a consumer that wants it can ask.
+
+    data-key is what lets the open one be reopened after a refresh; the
+    key is a Prometheus job label, so it is already [a-z0-9-] and stable
+    across renders.
     """
     lines = [_window_line("availability", check["availability"])]
     if check["latency_budget_ms"] is not None:
         lines.append(_window_line("within budget", check["performance"]))
     lines.append(
-        '<div class="windows">'
-        f"<span>probe success: {_percent(check['probe_success_ratio'])}</span>"
-        f"<span>{check['observed_days']} of {history_days} days observed</span></div>"
+        f'<div class="windows"><span>{check["observed_days"]} of {history_days} '
+        "days observed</span></div>"
     )
-    return f'<details class="more"><summary>detail</summary>{"".join(lines)}</details>'
+    return (
+        f'<details class="more" data-key="{_esc(check["key"])}:detail">'
+        f"<summary>detail</summary>{''.join(lines)}</details>"
+    )
+
+
+def _row_incidents(check: dict, timezone: str) -> str:
+    """This row's own confirmed periods, disclosed the way its figures are.
+
+    Reaching as far back as the bar above it, so the list accounts for
+    every coloured step in it — a red day with nothing to explain it is
+    the one thing a status page cannot afford to look like it is doing.
+
+    Rendered only for a check that has any. The count belongs in the
+    summary because the question a reader opens this with is how many, and
+    a disclosure that answers it while still shut has saved them the
+    click; a check with none has an all-green bar saying so already, and a
+    row per check reading "incidents (0)" is nine lines of nothing.
+    """
+    if not check["incidents"]:
+        return ""
+    items = "".join(_incident_item(i, timezone, named=False) for i in check["incidents"])
+    return (
+        f'<details class="more" data-key="{_esc(check["key"])}:incidents">'
+        f"<summary>incidents ({len(check['incidents'])})</summary>"
+        f'<ul class="log">{items}</ul></details>'
+    )
 
 
 def _css(page: dict, accent: str) -> str:
@@ -147,13 +193,19 @@ h1{{font-size:22px;font-weight:650;letter-spacing:-.01em}}
   color:var(--ink-muted);font-size:11px;font-variant-numeric:tabular-nums;margin-top:2px}}
 .more{{margin-top:2px}}
 .more summary{{color:var(--ink-muted);font-size:11px;cursor:pointer;width:fit-content}}
-.outages ul{{list-style:none;padding:0}}
-.outages li{{display:flex;gap:10px;align-items:baseline;padding:10px 2px;flex-wrap:wrap;
+/* Shut, the summaries sit side by side and cost one line between them.
+   Opened, the one in question claims a full row rather than reading in a
+   column half the page wide. */
+.more-row{{display:flex;flex-wrap:wrap;gap:2px 16px;align-items:flex-start}}
+.more-row details[open]{{flex:1 1 100%}}
+.log{{list-style:none;padding:0}}
+.log li{{display:flex;gap:10px;align-items:baseline;padding:10px 2px;flex-wrap:wrap;
   border-top:1px solid var(--border);font-size:14px}}
-.outages li:first-child{{border-top:0}}
-.outages .pill{{font-size:11px;padding:1px 8px}}
-.outages .when{{color:var(--ink-secondary);font-variant-numeric:tabular-nums}}
-.outages .dur{{margin-left:auto;color:var(--ink-secondary)}}
+.log li:first-child{{border-top:0}}
+.log .pill{{font-size:11px;padding:1px 8px}}
+.log .when{{color:var(--ink-secondary);font-variant-numeric:tabular-nums}}
+.log .dur{{margin-left:auto;color:var(--ink-secondary)}}
+.more-row .log li{{font-size:13px;padding:6px 2px}}
 .dur.open{{color:var(--critical-text);font-weight:600}}
 .empty{{color:var(--ink-muted);font-size:14px;padding:6px 2px}}
 footer{{margin-top:36px;padding-top:16px;border-top:1px solid var(--border);
@@ -163,7 +215,47 @@ footer .sep{{opacity:.6}}
 """
 
 
-def _row(check: dict, page: dict) -> str:
+def _script(stale_after_ms: int) -> str:
+    """Two enhancements, both of which the page is complete without.
+
+    The staleness notice: a meta-refresh that cannot reach the network
+    leaves the last render on screen indefinitely, and a page that has
+    stopped updating must say so rather than keep presenting old figures
+    as current.
+
+    The open disclosures: that same refresh reloads the document every
+    minute, and a browser restores scroll across it but not the open state
+    of a <details>. A reader who opened one to read the windows had it shut
+    under them within the minute, which made the disclosure unusable for
+    exactly the reader who wanted it. The open keys are recorded on toggle
+    and reapplied on load — sessionStorage, not local, so it is the tab's
+    choice and not a preference the page has decided to keep. The script
+    is the last thing in the body and runs synchronously, so the browser
+    has the finished document before it paints.
+
+    Storage throws rather than returns null when a browser has disabled it,
+    and a page that fails to render because it could not remember which
+    disclosure was open would be trading the whole page for a nicety.
+    """
+    return (
+        "(function(){var r=Date.parse(document.documentElement.dataset.renderedAt);"
+        "function c(){document.getElementById('stale').hidden="
+        f"(Date.now()-r)<{stale_after_ms};}}"
+        "c();setInterval(c,30000);"
+        "var d=document.querySelectorAll('details[data-key]'),k='detail-open',o=[];"
+        "try{o=JSON.parse(sessionStorage.getItem(k));}catch(e){}"
+        "if(!Array.isArray(o))o=[];"
+        "function s(){var n=[];Array.prototype.forEach.call(d,function(x){"
+        "if(x.open)n.push(x.dataset.key);});"
+        "try{sessionStorage.setItem(k,JSON.stringify(n));}catch(e){}}"
+        "Array.prototype.forEach.call(d,function(x){"
+        "if(o.indexOf(x.dataset.key)>=0)x.open=true;"
+        "x.addEventListener('toggle',s);});"
+        "})();"
+    )
+
+
+def _row(check: dict, page: dict, timezone: str) -> str:
     meta = theme.CHECK_STATES[check["state"]]
     spark = ""
     if check["spark"]:
@@ -212,10 +304,14 @@ def _row(check: dict, page: dict) -> str:
 <div class="row-bar">{theme.uptime_bar(check["days"])}\
 <span class="ratio" title="{_esc(definition)}">{headline}</span></div>
 <div class="bar-caption"><span>{history_days} days ago</span>{coverage}<span>today</span></div>
-{compliance_line}{_detail(check, history_days)}</article>"""
+{compliance_line}<div class="more-row">{_detail(check, history_days)}\
+{_row_incidents(check, timezone)}</div></article>"""
 
 
-def _incident_item(incident: dict, timezone: str) -> str:
+def _incident_item(incident: dict, timezone: str, *, named: bool) -> str:
+    """One entry, for either log. Named in the page's, where the whole
+    point is which check it was; unnamed in a row's, where the row has
+    said so already and repeating it nine times is furniture."""
     started = _short_time(incident["started_at"], timezone)
     if incident["ended_at"]:
         duration = f'<span class="dur">{humanize_duration(incident["duration_seconds"])}</span>'
@@ -224,8 +320,9 @@ def _incident_item(incident: dict, timezone: str) -> str:
     # The pill the check itself wears, so a reader scanning the list sorts
     # outages from slowdowns by a colour they have already learned.
     kind = incident["kind"]
+    name = f'<span class="name">{_esc(incident["display"])}</span>' if named else ""
     return (
-        f'<li><span class="name">{_esc(incident["display"])}</span>'
+        f"<li>{name}"
         f'<span class="pill p-{kind}">{theme.CHECK_STATES[kind]["label"]}</span>'
         f'<span class="when">{started}</span>{duration}</li>'
     )
@@ -254,15 +351,23 @@ def render_page(state: dict) -> str:
 
     groups = []
     for group in state["groups"]:
-        rows = "".join(_row(check, page) for check in group["checks"])
+        rows = "".join(_row(check, page, timezone) for check in group["checks"])
         groups.append(
             f'<section class="group"><h3>{_esc(group["name"])}</h3>'
             f'<div class="card">{rows}</div></section>'
         )
 
-    if state["incidents"]:
-        items = "".join(_incident_item(i, timezone) for i in state["incidents"])
-        incident_body = f"<ul>{items}</ul>"
+    # The section's heading is the filter: the log reaches as far as the
+    # record does, and "recent" is a narrower question than "ever".
+    rendered_at = parse_iso(state["generated_at"])
+    recent = [
+        i
+        for i in state["incidents"]
+        if in_window(i, rendered_at - timedelta(days=page["outage_log_days"]), rendered_at)
+    ]
+    if recent:
+        items = "".join(_incident_item(i, timezone, named=True) for i in recent)
+        incident_body = f'<ul class="log">{items}</ul>'
     else:
         incident_body = (
             f'<p class="empty">No incidents in the last {page["outage_log_days"]} days.</p>'
@@ -296,13 +401,7 @@ def render_page(state: dict) -> str:
         f"<span>{part}</span>" for part in footer_parts if part
     )
 
-    stale_after_ms = page["refresh_seconds"] * 3 * 1000
-    script = (
-        "(function(){var r=Date.parse(document.documentElement.dataset.renderedAt);"
-        "function c(){document.getElementById('stale').hidden="
-        f"(Date.now()-r)<{stale_after_ms};}}"
-        "c();setInterval(c,30000);})();"
-    )
+    script = _script(page["refresh_seconds"] * 3 * 1000)
 
     return f"""<!DOCTYPE html>
 <html lang="en" data-rendered-at="{state["generated_at"]}">
@@ -357,8 +456,11 @@ def render_status(state: dict) -> str:
             # the budget travels with it so a consumer need not guess.
             "latency_budget_ms": c["latency_budget_ms"],
             "performance": c["performance"],
+            # How much of history_days this check was actually heard from.
+            # The span itself is stated once, at the top level: it is the
+            # page's, not this check's, and nine identical copies of one
+            # number is a field that describes nothing.
             "observed_days": c["observed_days"],
-            "window_days": state["page"]["history_days"],
             "last_change": c["since"],
         }
         for c in state["checks"]
@@ -379,6 +481,13 @@ def render_status(state: dict) -> str:
             "generated_at": state["generated_at"],
             "degraded": state["degraded"],
             "overall": state["overall"],
+            # How far back the record reaches: the span of every uptime
+            # bar, of every availability figure, and of `incidents`.
+            "history_days": state["page"]["history_days"],
+            # Where the page draws the line under "Recent incidents".
+            # Published so a consumer can reproduce that section rather
+            # than guess at it; `incidents` itself is never narrowed to it.
+            "recent_incident_days": state["page"]["outage_log_days"],
             "checks": checks,
             "incidents": incidents,
         },

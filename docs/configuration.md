@@ -248,3 +248,17 @@ silence is the one failure a success ratio would otherwise reward.
 consumers, independent of the internal module seam. `badge.svg` is a
 shields-style badge colored by the overall state. Both live next to
 `index.html` and obey the zero-external-dependency rule.
+
+Its `incidents` array is the whole confirmed log over `history_days`, not
+the shorter list the page prints under **Recent incidents** — a machine
+output that held less than the page describing it would leave a consumer
+unable to reproduce what a reader can see. Both spans are stated, so
+either view is derivable:
+
+| Field | Covers |
+| --- | --- |
+| `history_days` | The record: every uptime bar, every availability figure, and `incidents` itself. |
+| `recent_incident_days` | Where the page draws the line under **Recent incidents**. Filter `incidents` by it to reproduce that section. |
+
+Each entry carries its check's `key`, so grouping by it reproduces the
+per-check list a row discloses.

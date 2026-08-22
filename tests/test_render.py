@@ -147,25 +147,81 @@ class TestRenderPage:
         assert 'class="pill p-slow"' in page
         assert "Degraded performance" in page
 
-    def test_both_numbers_are_named_and_may_disagree(self):
+    def test_the_figure_on_the_page_is_named_and_defined(self):
         page = render.render_page(fixtures.build_state("all-green", NOW))
         assert "availability · 24h: " in page
-        assert "probe success: " in page
         assert "90 of 90 days observed" in page
         assert 'title="share of observed time with no confirmed outage' in page
+
+    def test_probe_success_is_a_json_field_and_not_a_page_figure(self):
+        """It counts executions, not time, so it moves when a minority of
+        probe locations fails and nothing else on the page does. Beside a
+        figure measured against the confirmed log it reads as a second
+        opinion on the service; it is one on the instrument."""
+        built = fixtures.build_state("all-green", NOW)
+        assert "probe success" not in render.render_page(built)
+        status = json.loads(render.render_status(built))
+        assert all(c["probe_success_ratio"] is not None for c in status["checks"])
+
+    def test_an_open_disclosure_survives_the_refresh(self):
+        """The page reloads itself every refresh_seconds, and a browser
+        restores scroll across that but not which <details> was open."""
+        page = render.render_page(fixtures.build_state("all-green", NOW))
+        assert 'data-key="website:detail"' in page
+        assert "details[data-key]" in page
+        assert "sessionStorage" in page
+
+    def test_the_two_disclosures_on_a_row_cannot_collide(self):
+        """A check key is a Prometheus job label, so it holds no colon;
+        one namespace, and no check can be named into another's slot."""
+        page = render.render_page(fixtures.build_state("all-green", NOW))
+        assert 'data-key="docs:detail"' in page
+        assert 'data-key="docs:incidents"' in page
+
+    def test_a_row_discloses_its_own_incidents_with_the_count(self):
+        """The docs outage is older than the page log but inside the bar,
+        so the row is the only place it can be accounted for."""
+        page = render.render_page(fixtures.build_state("all-green", NOW))
+        assert "<summary>incidents (1)</summary>" in page
+        # Named in the page log, where which check it was is the point;
+        # unnamed in a row's, where the row has already said.
+        assert page.count("<summary>detail</summary>") == 9
+        assert page.count("<summary>incidents") == 3
+
+    def test_the_section_shows_only_what_it_calls_recent(self):
+        """The log reaches the record's ninety days; the section under
+        'Recent incidents' is a view of it at outage_log_days, and the
+        docs outage at 35 days is the one that separates the two."""
+        built = fixtures.build_state("all-green", NOW)
+        page = render.render_page(built)
+        section = page.split('<section class="outages group">')[1]
+        assert "docs" in {i["key"] for i in built["incidents"]}
+        assert "Documentation" not in section
+
+    def test_a_clean_check_carries_no_incident_disclosure(self):
+        """Its bar is already saying so, and nine rows reading (0) is
+        nine lines of nothing."""
+        built = fixtures.build_state("all-green", NOW)
+        clean = [c["key"] for c in built["checks"] if not c["incidents"]]
+        assert clean
+        page = render.render_page(built)
+        for key in clean:
+            assert f'data-key="{key}:incidents"' not in page
 
 
 class TestRenderStatus:
     def test_schema_and_content(self):
         status = json.loads(render.render_status(fixtures.build_state("one-down", NOW)))
-        assert status["schema_version"] == 2
+        assert status["schema_version"] == 3
         assert status["generated_at"] == "2026-08-14T12:00:00Z"
         assert status["degraded"] is False
         assert status["overall"] == "partial_outage"
         by_key = {c["key"]: c for c in status["checks"]}
         assert by_key["mail-inbound"]["state"] == "down"
         assert by_key["mail-inbound"]["type"] == "smtp"
-        assert by_key["website"]["window_days"] == 90
+        assert status["history_days"] == 90
+        assert status["recent_incident_days"] == 30
+        assert "window_days" not in by_key["website"]
         assert by_key["website"]["observed_days"] == 90
         assert [w["days"] for w in by_key["website"]["availability"]] == [1, 7, 30, 90]
         assert by_key["website"]["probe_success_ratio"] <= 1.0

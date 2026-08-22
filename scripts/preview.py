@@ -100,13 +100,17 @@ def validate_status(document: str) -> list[str]:
         ("generated_at", str),
         ("degraded", bool),
         ("overall", str),
+        # The two spans a consumer needs to read the rest: what the record
+        # covers, and where the page calls an incident recent.
+        ("history_days", int),
+        ("recent_incident_days", int),
         ("checks", list),
         ("incidents", list),
     ]:
         if not isinstance(payload.get(field), kind):
             errors.append(f"status.json {field} missing or not {kind.__name__}")
     for check in payload.get("checks", []):
-        for field in ("key", "display", "group", "state", "availability", "window_days"):
+        for field in ("key", "display", "group", "state", "availability", "observed_days"):
             if field not in check:
                 errors.append(f"status.json check missing {field}")
     return errors

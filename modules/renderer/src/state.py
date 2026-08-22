@@ -354,6 +354,46 @@ def confirmed_transitions(
     return transitions
 
 
+def in_window(record: dict, horizon: datetime, now: datetime) -> bool:
+    """Whether a confirmed period belongs in a log reaching back to horizon.
+
+    Judged on when it ended, so an outage leaves a log only once it is both
+    over and old, and one still open is in every window that reaches the
+    present — a reader must never have to widen a window to find the
+    incident that is happening to them right now.
+
+    One predicate for both logs. The row's reaches as far back as its own
+    bar so every coloured step has an entry explaining it; the page's
+    reaches outage_log_days. Two windows, but not two definitions of what
+    falls inside one.
+    """
+    return (record.get("ended_at") or iso(now)) >= iso(horizon)
+
+
+def incidents_within(
+    sources: list[tuple[str, list[dict]]], horizon: datetime, now: datetime
+) -> list[dict]:
+    """Both kinds of confirmed period as one list, newest first.
+
+    A confirmed degradation colours a day and moves a figure, so leaving it
+    out would be the one place a reader could watch the page react to
+    something it refuses to name.
+    """
+    entries = [
+        {
+            "kind": kind,
+            "started_at": record["started_at"],
+            "ended_at": record.get("ended_at"),
+            "duration_seconds": record.get("duration_seconds"),
+        }
+        for kind, records in sources
+        for record in records
+        if in_window(record, horizon, now)
+    ]
+    entries.sort(key=lambda entry: entry["started_at"], reverse=True)
+    return entries
+
+
 def iso(moment: datetime) -> str:
     return moment.strftime(ISO_FORMAT)
 
@@ -435,6 +475,14 @@ def assemble(
         )
         intervals = observed_intervals(days, site["timezone"], now)
         totals = window_totals(days, rollup_rows)
+        # As far back as this row's own bar. A red step the list cannot
+        # account for is a page that looks like it is holding something
+        # back, and the records are already in hand either way.
+        row_log = incidents_within(
+            (("down", records), ("slow", slow_records or [])),
+            now - timedelta(days=page["history_days"]),
+            now,
+        )
         checks.append(
             {
                 "key": key,
@@ -456,33 +504,28 @@ def assemble(
                     else share_windows(intervals, slow_records, now, page["history_days"])
                 ),
                 "probe_success_ratio": window_ratio(days, rollup_rows),
+                "incidents": row_log,
                 "observed_days": totals["observed_days"],
                 "spark": spark,
             }
         )
 
     display_by_key = {c["key"]: c["display"] for c in checks}
-    horizon = now - timedelta(days=page["outage_log_days"])
-    # Both kinds, in one list. A confirmed degradation colours a day and
-    # moves a figure; leaving it out of the log is the one place a reader
-    # could see the page react to something it refuses to name.
+    # One flat log, reaching as far as the record does. Narrowing is the
+    # reader's view of it: the page's section shows outage_log_days of it
+    # because "recent" is the question that section answers, and a row
+    # shows its own bar's worth. A consumer of status.json gets the whole
+    # thing and can reproduce either — the alternative is a machine output
+    # that holds less than the page it describes.
+    horizon = now - timedelta(days=page["history_days"])
     incident_log = []
     for kind, source in (("down", outages), ("slow", degradations)):
         for key, records in source.items():
-            for record in records:
-                reference = record.get("ended_at") or iso(now)
-                if reference < iso(horizon):
-                    continue
-                incident_log.append(
-                    {
-                        "key": key,
-                        "kind": kind,
-                        "display": display_by_key.get(key, key),
-                        "started_at": record["started_at"],
-                        "ended_at": record.get("ended_at"),
-                        "duration_seconds": record.get("duration_seconds"),
-                    }
-                )
+            # Keyed off the records, not off the checks, so a period
+            # belonging to a check the manifest no longer declares still
+            # surfaces rather than vanishing with the declaration.
+            for entry in incidents_within(((kind, records),), horizon, now):
+                incident_log.append({"key": key, "display": display_by_key.get(key, key), **entry})
     incident_log.sort(key=lambda o: o["started_at"], reverse=True)
 
     groups = [

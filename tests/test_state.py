@@ -439,7 +439,62 @@ class TestAssemble:
         )
         assert [(i["key"], i["kind"]) for i in built["incidents"]] == [("api", "slow")]
 
-    def test_outages_outside_log_window_are_dropped(self):
+    def test_a_row_accounts_for_every_coloured_step_in_its_own_bar(self):
+        """The docs outage is 35 days old: older than what the page calls
+        recent, inside the 90-day bar. The row's list reaches as far as
+        the bar it sits under, so the step has an entry explaining it —
+        which is the whole reason the row carries a list of its own."""
+        built = fixtures.build_state("all-green", NOW)
+        by_key = {c["key"]: c for c in built["checks"]}
+        assert len(by_key["docs"]["incidents"]) == 1
+        assert by_key["docs"]["incidents"][0]["kind"] == "down"
+
+    def test_a_row_log_carries_both_kinds_newest_first(self):
+        started = state.iso(NOW.replace(tzinfo=UTC) - timedelta(hours=2))
+        built = state.assemble(
+            fixtures.manifest(),
+            now=NOW,
+            outages={"api": [{"started_at": "2026-06-01T00:00:00Z", "ended_at": None}]},
+            degradations={"api": [{"started_at": started, "ended_at": None}]},
+        )
+        by_key = {c["key"]: c for c in built["checks"]}
+        assert [i["kind"] for i in by_key["api"]["incidents"]] == ["slow", "down"]
+
+    def test_a_row_log_reaches_no_further_than_its_bar(self):
+        """400 days of records survive in the table; the row shows the
+        window it draws, not everything retention happens to hold."""
+        outages = {"website": [{"started_at": "2025-01-01T00:00:00Z", "ended_at": None}]}
+        built = state.assemble(fixtures.manifest(), now=NOW, outages=outages)
+        by_key = {c["key"]: c for c in built["checks"]}
+        # Still open, so it reaches the present and belongs in every window.
+        assert len(by_key["website"]["incidents"]) == 1
+        closed = {
+            "website": [
+                {
+                    "started_at": "2025-01-01T00:00:00Z",
+                    "ended_at": "2025-01-01T01:00:00Z",
+                    "duration_seconds": 3600,
+                }
+            ]
+        }
+        built = state.assemble(fixtures.manifest(), now=NOW, outages=closed)
+        by_key = {c["key"]: c for c in built["checks"]}
+        assert by_key["website"]["incidents"] == []
+
+    def test_the_log_reaches_as_far_as_the_record_does(self):
+        """One log, narrowed by whoever reads it. The docs outage is 35
+        days old — outside what the page calls recent, inside the record —
+        so it belongs in the log itself, and narrowing is the section's
+        job rather than the assembly's."""
+        built = fixtures.build_state("all-green", NOW)
+        assert "docs" in {i["key"] for i in built["incidents"]}
+        # And every row's own log is a slice of that same set.
+        flat = {(i["key"], i["kind"], i["started_at"]) for i in built["incidents"]}
+        for check in built["checks"]:
+            for incident in check["incidents"]:
+                assert (check["key"], incident["kind"], incident["started_at"]) in flat
+
+    def test_records_older_than_the_record_are_dropped(self):
         outages = {
             "website": [
                 {
