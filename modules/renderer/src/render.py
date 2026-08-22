@@ -70,7 +70,7 @@ def _window_line(label: str, windows: list[dict]) -> str:
     return f'<div class="windows"><span>{text}</span></div>'
 
 
-def _detail(check: dict, history_days: int) -> str:
+def _detail(check: dict) -> str:
     """The shorter windows, one interaction away.
 
     A status page answers "is it working" first, and the figures that
@@ -91,6 +91,11 @@ def _detail(check: dict, history_days: int) -> str:
     instrument's noise floor from a service's. It stays in status.json,
     where a consumer that wants it can ask.
 
+    How much of the window was observed is stated under the bar instead,
+    where it costs no height of its own and sits against the greyed steps
+    it is describing. Repeating it here said the same thing twice to the
+    one reader who had opened the disclosure.
+
     data-key is what lets the open one be reopened after a refresh; the
     key is a Prometheus job label, so it is already [a-z0-9-] and stable
     across renders.
@@ -98,10 +103,6 @@ def _detail(check: dict, history_days: int) -> str:
     lines = [_window_line("availability", check["availability"])]
     if check["latency_budget_ms"] is not None:
         lines.append(_window_line("within budget", check["performance"]))
-    lines.append(
-        f'<div class="windows"><span>{check["observed_days"]} of {history_days} '
-        "days observed</span></div>"
-    )
     return (
         f'<details class="more" data-key="{_esc(check["key"])}:detail">'
         f"<summary>detail</summary>{''.join(lines)}</details>"
@@ -304,7 +305,7 @@ def _row(check: dict, page: dict, timezone: str) -> str:
 <div class="row-bar">{theme.uptime_bar(check["days"])}\
 <span class="ratio" title="{_esc(definition)}">{headline}</span></div>
 <div class="bar-caption"><span>{history_days} days ago</span>{coverage}<span>today</span></div>
-{compliance_line}<div class="more-row">{_detail(check, history_days)}\
+{compliance_line}<div class="more-row">{_detail(check)}\
 {_row_incidents(check, timezone)}</div></article>"""
 
 

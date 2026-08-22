@@ -138,9 +138,18 @@ class TestRenderPage:
         """A window the page holds every day of needs none, and a note that
         appears regardless is a number that means nothing."""
         page = render.render_page(fixtures.build_state("all-green", NOW))
-        assert "90 of 90 days observed" in page
-        assert page.count("90 of 90 days observed") == 9
+        assert "90 of 90 days observed" not in page
+        assert "days observed" not in page
         assert "<span>90 days ago</span><span>today</span>" in page
+
+    def test_the_coverage_qualifier_is_stated_once(self):
+        """Under the bar, against the grey steps it describes, where it
+        costs no height of its own. Saying it again inside the disclosure
+        told the same reader the same thing twice."""
+        built = state.assemble(fixtures.manifest(), now=NOW, success={"website": 1.0})
+        page = render.render_page(built)
+        assert page.count("0 of 90 days observed") == len(built["checks"])
+        assert page.count("days observed") == len(built["checks"])
 
     def test_a_slow_check_reads_slow(self):
         page = render.render_page(fixtures.build_state("degraded-slow", NOW))
@@ -150,7 +159,6 @@ class TestRenderPage:
     def test_the_figure_on_the_page_is_named_and_defined(self):
         page = render.render_page(fixtures.build_state("all-green", NOW))
         assert "availability · 24h: " in page
-        assert "90 of 90 days observed" in page
         assert 'title="share of observed time with no confirmed outage' in page
 
     def test_probe_success_is_a_json_field_and_not_a_page_figure(self):
