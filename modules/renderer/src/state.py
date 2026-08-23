@@ -13,6 +13,9 @@ DEFAULT_PORTS = {"https": 443, "http": 80, "smtp": 25}
 # now, and a ninety-day figure cannot answer that question.
 SHORT_WINDOW_DAYS = (1, 7, 30)
 
+# Mirrors the checks module's `order` default, for a manifest that omits it.
+DEFAULT_ORDER = 50
+
 ISO_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
 
@@ -55,7 +58,7 @@ def group_order(checks: dict) -> list[str]:
     shared group list."""
     lowest: dict[str, int] = {}
     for check in checks.values():
-        order = check.get("order", 50)
+        order = check.get("order", DEFAULT_ORDER)
         if check["group"] not in lowest or order < lowest[check["group"]]:
             lowest[check["group"]] = order
     return [group for group, _ in sorted(lowest.items(), key=lambda item: (item[1], item[0]))]
@@ -533,7 +536,7 @@ def assemble(
             "name": name,
             "checks": sorted(
                 (c for c in checks if c["group"] == name),
-                key=lambda c: (manifest["checks"][c["key"]].get("order", 50), c["key"]),
+                key=lambda c: (manifest["checks"][c["key"]].get("order", DEFAULT_ORDER), c["key"]),
             ),
         }
         for name in group_order(manifest["checks"])
