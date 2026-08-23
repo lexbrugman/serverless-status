@@ -13,8 +13,6 @@ from pathlib import Path
 
 STATES = ("all-green", "one-down", "degraded-slow", "stale-cache")
 
-SAMPLES_PER_DAY = {"https": 288, "http": 288, "smtp": 288, "ping": 144}
-
 BASE_LATENCY_SECONDS = {
     "website": 0.142,
     "api": 0.310,
@@ -87,8 +85,10 @@ def _matrix(series: dict[str, list[tuple[float, float]]]) -> dict:
     }
 
 
-def _frequency_minutes(check: dict) -> int:
-    return 10 if check["type"] == "ping" else 5
+def _samples_per_day(check: dict) -> int:
+    """Executions a day at the check's own interval — the manifest states it,
+    so a fixture never has to know a type's default."""
+    return 1440 // check["frequency_minutes"]
 
 
 RANGE_POINTS = 97
@@ -124,7 +124,7 @@ def _success_counts(mani: dict, now: datetime, down: set[str]) -> tuple[dict, di
     it."""
     met, of = {}, {}
     for key, check in mani["checks"].items():
-        step = _frequency_minutes(check) * 60
+        step = check["frequency_minutes"] * 60
         stamps = [_ts(now) - (11 - i) * step for i in range(12)]
         met[key] = [
             (at, 0.0 if key in down and i >= 8 else LOCATIONS) for i, at in enumerate(stamps)
@@ -141,7 +141,7 @@ def _budget_counts(mani: dict, now: datetime, slow: set[str]) -> tuple[dict, dic
     for key, check in mani["checks"].items():
         if check["latency_budget_ms"] is None:
             continue
-        step = _frequency_minutes(check) * 60
+        step = check["frequency_minutes"] * 60
         stamps = [_ts(now) - (11 - i) * step for i in range(12)]
         met[key] = [
             (at, 0.0 if key in slow and i >= 8 else LOCATIONS) for i, at in enumerate(stamps)
@@ -156,7 +156,7 @@ def _day_totals(mani: dict, now: datetime, down: set[str]) -> tuple[dict, dict]:
     elapsed = now.hour * 3600 + now.minute * 60
     samples, successes = {}, {}
     for key, check in mani["checks"].items():
-        per_day = SAMPLES_PER_DAY[check["type"]]
+        per_day = _samples_per_day(check)
         count = max(1, int(per_day * elapsed / 86400))
         samples[key] = float(count)
         successes[key] = float(max(0, count - (4 if key in down else 0)))
@@ -169,7 +169,7 @@ def _rollups(mani: dict, now: datetime, ongoing: dict[str, int]) -> dict:
     rollups = {}
     for key, check in mani["checks"].items():
         rng = random.Random(f"rollup:{key}")
-        per_day = SAMPLES_PER_DAY[check["type"]]
+        per_day = _samples_per_day(check)
         rows = []
         for ago in range(120, -1, -1):
             day = now.date() - timedelta(days=ago)
@@ -212,7 +212,7 @@ def _periods(
     records = {}
     for key, ago, failures in history:
         check = mani["checks"][key]
-        duration = failures * _frequency_minutes(check) * 60
+        duration = failures * check["frequency_minutes"] * 60
         offset = 9 if salt == "outage" else 14
         started = datetime.combine(now.date(), datetime.min.time()) - timedelta(
             days=ago, hours=-offset, minutes=-14
