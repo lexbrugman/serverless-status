@@ -44,7 +44,8 @@ Instance created in $target, pinned to ${tag}.
 Next steps (no local tooling needed — CI bootstraps over OIDC):
   1. Make it a repository: git init (skip if the target was a clone),
      add your private remote, push.
-  2. Fill in the *.tfvars data files; the state bucket name appears
+  2. Fill in config.yaml — the domain, the page, your Grafana
+     account(s) and every check; the state bucket and region appear
      once, in state.tfbackend. Commit and push.
   3. In the IAM console: create the GitHub OIDC provider and a
      Web-identity role for this repository (branch filter empty),
@@ -53,8 +54,10 @@ Next steps (no local tooling needed — CI bootstraps over OIDC):
      (per-org map) and STATE_PASSPHRASE — generate it into your password
      manager first:
        head -c 24 /dev/urandom | base64
-  5. Run the Bootstrap workflow, phase: checks — then verify step zero
-     in the Grafana console (port-25 egress, STARTTLS dialogue order).
-  6. Run Bootstrap again, phase: all — its summary lists the handover.
+  5. Run the Bootstrap workflow. One dispatch builds everything, and
+     step zero gates the middle of it: the SMTP dialogue is read back
+     from the Synthetic Monitoring API and every check must publish a
+     sample before anything downstream is built. Its summary lists what
+     is left to do by hand.
 See docs/setup-guide.md in the public repository for the full walkthrough.
 EOF

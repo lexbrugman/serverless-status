@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Render every fixture state to out/ and validate the results — no
 credentials, no network, no container. This is the loop for iterating on the
-SVG and CSS, and the render-checks CI job runs it with --check only.
+SVG and CSS, and what the render-checks CI job uploads for review.
 
 Usage: preview.py [--check] [--serve [PORT]] [--out DIR]
 """

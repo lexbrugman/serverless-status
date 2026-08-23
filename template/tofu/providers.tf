@@ -1,5 +1,5 @@
 # Do not edit — wiring a template update overwrites. Your values live in
-# the *.tfvars data files.
+# config.yaml and state.tfbackend.
 terraform {
   required_version = ">= 1.10"
 
