@@ -75,6 +75,19 @@ DOWN_DEFAULTS = [
 # A rule naming a metric nothing publishes returns no data forever, and
 # no-data on the not-reporting rule is deliberately not an alert — so the
 # mismatch is silent, and this is what makes it loud.
+# scripts/check-sm-payloads.py applies one check of each type against a mock
+# SM API to prove what the provider transmits. It cannot instantiate
+# modules/checks to do it — that needs the cloud API and a tenant read
+# mocked as well — so it restates the settings under test. A restatement
+# that drifts leaves the guard asserting what the module used to configure,
+# green, while claiming to have proved what it now does.
+PAYLOAD_GUARD = "scripts/check-sm-payloads.py"
+PAYLOAD_MODULE = "modules/checks/main.tf"
+PAYLOAD_SETTINGS = [
+    (r"valid_status_codes = (\[[^\]]*\])", "the accepted status codes"),
+    (r"\n      tls = (\w+)", "whether the smtp check starts in TLS"),
+]
+
 METRIC_SOURCE = "modules/renderer/src/report.py"
 METRIC_RULES = "modules/alerting/main.tf"
 METRIC_FIELDS = [
@@ -177,6 +190,15 @@ def main() -> None:
             failures.append(
                 f"{DOWN_ROOT}: {name} resolves to {resolved}, "
                 f"{DOWN_MODULE} defaults it to {declared}"
+            )
+
+    for pattern, description in PAYLOAD_SETTINGS:
+        configured = extract(PAYLOAD_MODULE, pattern, description)
+        asserted = extract(PAYLOAD_GUARD, pattern, description)
+        if configured != asserted:
+            failures.append(
+                f"{PAYLOAD_GUARD}: proves {description} is {asserted}, "
+                f"but {PAYLOAD_MODULE} configures {configured}"
             )
 
     measurement = extract(METRIC_SOURCE, r'MEASUREMENT = "([a-z_]+)"', "the Influx measurement")

@@ -33,9 +33,12 @@ ROOT = Path(__file__).resolve().parent.parent
 DIALOGUE_MODULE = ROOT / "modules" / "checks" / "dialogue"
 LOCK_FILE = ROOT / "modules" / "checks" / ".terraform.lock.hcl"
 
-# The non-smtp checks mirror what modules/checks/main.tf configures per
-# type: fail_if_not_ssl and the accepted status code for https, an empty
-# settings block for ping, frequency and timeout in milliseconds.
+# The non-smtp checks restate what modules/checks/main.tf configures per
+# type, because instantiating the module here would mean mocking the cloud
+# API and the tenant read as well. The settings that can drift silently —
+# the accepted status codes, and whether the smtp check starts in TLS — are
+# pinned to the module by scripts/check-cross-layer.py, so a restatement
+# that stops matching fails lint rather than passing this.
 ROOT_CONFIG = """
 terraform {
   required_providers {
