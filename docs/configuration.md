@@ -73,6 +73,17 @@ of allowed keys — the check reads the type constraints out of the plan and
 walks your file against them, so a field added upstream is known the moment
 it exists.
 
+The two allowances behave differently, because only one of them is
+knowable in advance. Executions follow from the configuration — frequency
+times probe locations — so they are projected and enforced. Metrics series
+follow from what Synthetic Monitoring chooses to publish per check, which
+is Grafana's to decide and is documented nowhere, so they are read from the
+account and reported as `metrics_series_<account>`: series in use against
+the ceiling the plan enforces. Note that the enforced ceiling sits above
+the allowance a plan includes — 15k against 10k on the free tier — so the
+number to watch is the smaller one. A pair of zeroes means the reading
+failed rather than that there is room.
+
 The checks module enforces each account's declared monthly execution
 budget as a plan-time precondition — an over-budget check set fails the
 plan naming the largest consumers — and reads the tenant's check quota from

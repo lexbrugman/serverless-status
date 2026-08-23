@@ -22,6 +22,24 @@ override_data {
   }
 }
 
+# The usage reads are file-level: every run plans the whole module, and a
+# run that says nothing about them would reach the real API.
+override_data {
+  target = data.http.usage_datasource
+  values = {
+    status_code   = 200
+    response_body = "{\"uid\":\"usage-uid\"}"
+  }
+}
+
+override_data {
+  target = data.http.series
+  values = {
+    status_code   = 200
+    response_body = "{\"data\": {\"result\": [{\"metric\": {\"__name__\": \"grafanacloud_instance_active_series\"}, \"value\": [1, \"265\"]}, {\"metric\": {\"__name__\": \"grafanacloud_instance_metrics_limits\"}, \"value\": [1, \"15000\"]}]}}"
+  }
+}
+
 override_data {
   target = data.grafana_synthetic_monitoring_probes.main
   values = {
@@ -256,4 +274,29 @@ run "unreadable_tenant_fails_the_plan" {
   }
 
   expect_failures = [terraform_data.tenant_quota]
+}
+
+
+# The one run that applies. The usage reads authenticate with a service
+# account this module creates, so a plan that has not made it yet cannot
+# know what they return — the reading is only ever a fact after an apply,
+# which is exactly what it reports on.
+run "series_usage_is_read_from_the_account" {
+  command = apply
+
+  # Stated here because a file-level override of an address some run also
+  # overrides is ignored everywhere, and unreadable_tenant_fails_the_plan
+  # overrides this one.
+  override_data {
+    target = data.http.sm_tenant
+    values = {
+      status_code   = 200
+      response_body = "{\"limits\":{\"maxChecks\":100}}"
+    }
+  }
+
+  assert {
+    condition     = output.metrics_series.used == 265 && output.metrics_series.limit == 15000
+    error_message = "the series reading is surfaced as used against the enforced ceiling"
+  }
 }

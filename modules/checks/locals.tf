@@ -1,4 +1,21 @@
 locals {
+  # The ceiling the Cloud Portal shows as the account's series limit. Named
+  # here because grafanacloud_instance_metrics_limits carries a dozen of
+  # them and only this one is the one the portal counts against.
+  series_limit_name = "max_active_series_per_user"
+
+  usage_datasource_uid = try(jsondecode(data.http.usage_datasource.response_body).uid, "")
+
+  series_readings = try(jsondecode(data.http.series.response_body).data.result, [])
+  series_used = try(tonumber([
+    for point in local.series_readings :
+    point.value[1] if point.metric["__name__"] == "grafanacloud_instance_active_series"
+  ][0]), 0)
+  series_limit = try(tonumber([
+    for point in local.series_readings :
+    point.value[1] if point.metric["__name__"] == "grafanacloud_instance_metrics_limits"
+  ][0]), 0)
+
   port_default = { https = 443, http = 80, smtp = 25 }
 
   freq_default    = { https = 5, http = 5, smtp = 5, ping = 10 }

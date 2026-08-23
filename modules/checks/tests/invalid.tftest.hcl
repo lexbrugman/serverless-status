@@ -8,6 +8,22 @@ mock_provider "grafana" {
 mock_provider "http" {}
 
 override_data {
+  target = data.http.usage_datasource
+  values = {
+    status_code   = 200
+    response_body = "{\"uid\":\"usage-uid\"}"
+  }
+}
+
+override_data {
+  target = data.http.series
+  values = {
+    status_code   = 200
+    response_body = "{\"data\": {\"result\": [{\"metric\": {\"__name__\": \"grafanacloud_instance_active_series\"}, \"value\": [1, \"265\"]}, {\"metric\": {\"__name__\": \"grafanacloud_instance_metrics_limits\"}, \"value\": [1, \"15000\"]}]}}"
+  }
+}
+
+override_data {
   target = data.http.sm_tenant
   values = {
     status_code   = 200

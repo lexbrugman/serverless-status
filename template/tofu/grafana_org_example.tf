@@ -120,3 +120,11 @@ output "monthly_executions_example" {
   description = "Projected Synthetic Monitoring executions per month for the example account."
   value       = module.checks_example.monthly_executions
 }
+
+# The other allowance these checks spend. Executions are projected from the
+# configuration; series can only be read, because what each check publishes
+# is Grafana's to decide.
+output "metrics_series_example" {
+  description = "Metrics series in use against the ceiling enforced for the example account."
+  value       = module.checks_example.metrics_series
+}
