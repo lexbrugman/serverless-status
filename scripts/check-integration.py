@@ -8,12 +8,10 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "scripts"))
-
-import preview  # noqa: E402
+# Python puts a script's own directory first on sys.path, so this resolves
+# without arranging anything.
+import preview
 
 INVOKE = "http://localhost:9000/2015-03-31/functions/function/invocations"
 

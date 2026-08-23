@@ -17,12 +17,14 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 ROOT = Path(__file__).resolve().parent.parent
+
+# The renderer ships as loose modules inside a zip rather than as a package,
+# so anything importing it from outside Lambda has to say where they are.
+# The renderers themselves are imported where they are used, not here: the
+# validators below need none of it, and a caller that only wants those
+# should not have to satisfy the renderer's layout to get them.
 sys.path.insert(0, str(ROOT / "modules" / "renderer" / "src"))
 sys.path.insert(0, str(ROOT / "tests"))
-
-import badge  # noqa: E402
-import fixtures  # noqa: E402
-import render  # noqa: E402
 
 # The SVG namespace is an identifier, never fetched; everything else with a
 # scheme must come from the configured site.links.
@@ -127,6 +129,10 @@ def validate_badge(document: str) -> list[str]:
 
 
 def render_fixture(name: str, now: datetime, version: str | None) -> dict[str, str]:
+    import badge
+    import fixtures
+    import render
+
     state = fixtures.build_state(name, now, version, repository=SOURCE_REPOSITORY)
     allowed = {link["url"] for link in state["site"].get("links") or []}
     # The footer's own link is the one external reference the page may
@@ -155,6 +161,8 @@ def render_fixture(name: str, now: datetime, version: str | None) -> dict[str, s
 
 
 def main() -> None:
+    import fixtures
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="validate only, write nothing")
     parser.add_argument("--serve", nargs="?", const=0, type=int, metavar="PORT")
