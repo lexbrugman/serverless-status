@@ -10,9 +10,12 @@
 # account they are deferred and any condition over them is unknowable until
 # afterwards — which OpenTofu treats as an error, not a warning.
 #
-# Unlike the execution allowance, this ceiling is published — but on the
-# org-level grafanacloud-usage datasource rather than on the SM tenant, so
-# it is read through the stack's own Grafana rather than the SM API. Two
+# The enforced ceiling is published, unlike anything about executions — but
+# on the org-level grafanacloud-usage datasource rather than on the SM
+# tenant, so it is read through the stack's own Grafana rather than the SM
+# API. What is not published, for either resource, is the allowance a
+# subscription includes: the number that starts costing money sits below
+# the number that starts rejecting writes, and only the second is readable. Two
 # reads: the datasource's uid, then one query for both numbers. Neither is
 # a new dependency — the providers cannot plan this module at all without
 # the same stack's APIs answering.
@@ -51,7 +54,7 @@ data "http" "series" {
 }
 
 output "metrics_series" {
-  description = "What this account's checks are costing its metrics allowance: series in use, and the ceiling the plan enforces. Read rather than declared — unlike the execution allowance, this one is published. Reported rather than asserted: the count follows from what Synthetic Monitoring emits per check per probe location, which Grafana documents nowhere and does not contract to hold steady, so there is nothing here a plan could enforce. Zeroes mean the reading failed rather than that there is room."
+  description = "What this account's checks are costing its metrics allowance: series in use, and the ceiling Grafana enforces before it starts rejecting writes. That ceiling is not the allowance a subscription includes, and is higher — 15k enforced against 10k included on the free tier — so crossing the included figure costs money long before this number is reached. The included figure is published nowhere, which is the same gap monthly_execution_budget exists to fill. Reported rather than asserted: the count follows from what Synthetic Monitoring emits per check per probe location, which Grafana documents nowhere and does not contract to hold steady, so there is nothing here a plan could enforce. Zeroes mean the reading failed rather than that there is room."
   value = {
     used  = local.series_used
     limit = local.series_limit

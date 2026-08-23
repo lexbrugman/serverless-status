@@ -16,9 +16,11 @@ data "grafana_synthetic_monitoring_probes" "main" {
 # else. There is no execution allowance in it, which is why
 # monthly_execution_budget is declared rather than read.
 #
-# The metrics series cap is published, but not here — it lives in the
-# org-level grafanacloud-usage datasource rather than on the tenant, so
-# reading it means a second credential and a second endpoint.
+# The metrics series ceiling is published, but not here — it lives in the
+# org-level grafanacloud-usage datasource rather than on the tenant. What
+# no API publishes, for series or for executions, is the allowance a
+# subscription includes, which is the lower of the two numbers and the one
+# that decides a bill.
 data "http" "sm_tenant" {
   url = "${var.sm_api_url}/api/v1/tenant"
 
