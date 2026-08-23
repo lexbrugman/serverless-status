@@ -8,9 +8,17 @@ data "grafana_synthetic_monitoring_probes" "main" {
 }
 
 # The quota Grafana will actually enforce, read from the tenant itself so
-# the plan checks this account's own numbers, not an assumption. (The
-# monthly execution allowance has no API anywhere — that one stays a
-# declared budget.)
+# the plan checks this account's own numbers, not an assumption.
+#
+# This is everything the Synthetic Monitoring API knows about a tenant's
+# limits: its GetLimitsResponse carries MaxChecks, MaxBrowserChecks,
+# MaxScriptedChecks and the metric and log label ceilings, and nothing
+# else. There is no execution allowance in it, which is why
+# monthly_execution_budget is declared rather than read.
+#
+# The metrics series cap is published, but not here — it lives in the
+# org-level grafanacloud-usage datasource rather than on the tenant, so
+# reading it means a second credential and a second endpoint.
 data "http" "sm_tenant" {
   url = "${var.sm_api_url}/api/v1/tenant"
 

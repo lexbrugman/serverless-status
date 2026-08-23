@@ -61,7 +61,7 @@ variable "probe_locations" {
 }
 
 variable "monthly_execution_budget" {
-  description = "Hard plan-time ceiling on computed Synthetic Monitoring executions per month for this account — the allowance its plan includes, or the spend its owner accepts. Grafana exposes no API for this number, so it is declared; the arithmetic models Grafana's accounting rather than contracting with it, so keep headroom."
+  description = "Hard plan-time ceiling on computed Synthetic Monitoring executions per month for this account: the spend its owner accepts, which may be less than the plan allows. Two numbers rather than one, and only this one is stateable — no Synthetic Monitoring or Cloud API publishes a plan's execution allowance, so nothing can assert this budget sits under it. The arithmetic models Grafana's accounting rather than contracting with it; keep headroom."
   type        = number
 }
 
