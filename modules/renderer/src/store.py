@@ -76,10 +76,29 @@ def put_rollup(tbl, key: str, day: str, samples: int, successes: int, expires_at
     )
 
 
+def _all_items(tbl, **query) -> list[dict]:
+    """Every page, not just the first.
+
+    A DynamoDB query returns at most 1 MB and hands back a cursor for the
+    rest. Stopping at the first page reads as a shorter history rather than
+    as an error, which is the failure a page about availability cannot
+    afford to have.
+    """
+    items = []
+    while True:
+        response = tbl.query(**query)
+        items += response["Items"]
+        cursor = response.get("LastEvaluatedKey")
+        if not cursor:
+            return items
+        query = {**query, "ExclusiveStartKey": cursor}
+
+
 def rollups(tbl, key: str, first_day: str, last_day: str) -> list[dict]:
-    response = tbl.query(
+    items = _all_items(
+        tbl,
         KeyConditionExpression=Key("PK").eq(f"CHECK#{key}")
-        & Key("SK").between(f"DAY#{first_day}", f"DAY#{last_day}")
+        & Key("SK").between(f"DAY#{first_day}", f"DAY#{last_day}"),
     )
     return [
         {
@@ -87,7 +106,7 @@ def rollups(tbl, key: str, first_day: str, last_day: str) -> list[dict]:
             "samples": _plain(item["samples"]),
             "successes": _plain(item["successes"]),
         }
-        for item in response["Items"]
+        for item in items
     ]
 
 
@@ -143,7 +162,8 @@ def periods(tbl, kind: str, key: str) -> list[dict]:
     Windowing is the assembly's job: an ongoing period older than the log
     window must still surface, so the read cannot pre-filter by start
     time."""
-    response = tbl.query(
+    items = _all_items(
+        tbl,
         KeyConditionExpression=Key("PK").eq(f"CHECK#{key}") & Key("SK").begins_with(f"{kind}#"),
     )
     return [
@@ -152,5 +172,5 @@ def periods(tbl, kind: str, key: str) -> list[dict]:
             "ended_at": item.get("ended_at"),
             "duration_seconds": _plain(item.get("duration_seconds")),
         }
-        for item in response["Items"]
+        for item in items
     ]

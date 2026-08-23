@@ -133,3 +133,34 @@ class TestPlain:
 
         value = {"a": [Decimal("1"), Decimal("2.5")], "b": {"c": Decimal("3")}, "d": "x"}
         assert store._plain(value) == {"a": [1, 2.5], "b": {"c": 3}, "d": "x"}
+
+
+class TestPagination:
+    """A DynamoDB query returns at most 1 MB and a cursor for the rest.
+    Stopping at the first page reads as a shorter history, not as an
+    error — which is the failure a page about availability cannot afford."""
+
+    class Paged:
+        def __init__(self, pages):
+            self.pages = pages
+            self.seen = []
+
+        def query(self, **kwargs):
+            self.seen.append(kwargs.get("ExclusiveStartKey"))
+            return self.pages[len(self.seen) - 1]
+
+    def test_it_follows_the_cursor_to_the_end(self):
+        tbl = self.Paged(
+            [
+                {"Items": [{"n": 1}], "LastEvaluatedKey": {"PK": "a"}},
+                {"Items": [{"n": 2}], "LastEvaluatedKey": {"PK": "b"}},
+                {"Items": [{"n": 3}]},
+            ]
+        )
+        assert store._all_items(tbl, KeyConditionExpression="x") == [{"n": 1}, {"n": 2}, {"n": 3}]
+        assert tbl.seen == [None, {"PK": "a"}, {"PK": "b"}]
+
+    def test_a_single_page_asks_once(self):
+        tbl = self.Paged([{"Items": [{"n": 1}]}])
+        assert store._all_items(tbl, KeyConditionExpression="x") == [{"n": 1}]
+        assert tbl.seen == [None]
