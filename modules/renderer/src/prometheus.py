@@ -7,6 +7,7 @@ handler ships as stdlib plus boto3, nothing to package.
 """
 
 import base64
+import http.client
 import json
 import urllib.parse
 import urllib.request
@@ -70,7 +71,11 @@ def _request(credentials: dict, path: str, params: dict) -> dict:
     try:
         with urllib.request.urlopen(request, timeout=10) as response:
             return json.load(response)
-    except (OSError, ValueError) as error:
+    # HTTPException covers the responses that arrive malformed rather than
+    # not at all — an IncompleteRead is neither an OSError nor a ValueError,
+    # and one escaping here would crash the invocation instead of rendering
+    # the degraded page this class exists to reach.
+    except (OSError, ValueError, http.client.HTTPException) as error:
         raise PrometheusError(f"{path}: {error}") from error
 
 
@@ -153,18 +158,40 @@ def instant(credentials: dict, query: str, now: datetime) -> dict[str, float]:
     return parse_vector(response)
 
 
-def latency_range(credentials: dict, now: datetime) -> dict[str, list[tuple[float, float]]]:
+def on_grid(
+    points: list[tuple[float, float]], start: float, end: float, step: int
+) -> list[tuple[float, float | None]]:
+    """The series placed on the grid it was asked for, gaps included.
+
+    Prometheus omits the instants it has no sample for, so a returned series
+    is dense however much of the window went unobserved. The sparkline
+    positions by index, which draws that omission as time that passed
+    normally — a probe that stopped for six hours reads as a steady line.
+    Padding the holes is what lets the shape stay honest about them.
+    """
+    sampled = {round((ts - start) / step): value for ts, value in points}
+    return [
+        (start + slot * step, sampled.get(slot)) for slot in range(int((end - start) // step) + 1)
+    ]
+
+
+def latency_range(credentials: dict, now: datetime) -> dict[str, list[tuple[float, float | None]]]:
+    start = _epoch(now - timedelta(hours=RANGE_HOURS))
+    end = _epoch(now)
     response = _request(
         credentials,
         "/api/v1/query_range",
         {
             "query": RANGE_DURATION,
-            "start": _epoch(now - timedelta(hours=RANGE_HOURS)),
-            "end": _epoch(now),
+            "start": start,
+            "end": end,
             "step": RANGE_STEP_SECONDS,
         },
     )
-    return parse_matrix(response)
+    return {
+        job: on_grid(points, start, end, RANGE_STEP_SECONDS)
+        for job, points in parse_matrix(response).items()
+    }
 
 
 def _results(response: dict, expected_type: str) -> list[dict]:
