@@ -54,7 +54,9 @@ def state_resources():
 
 
 def state_dialogues(resources):
-    """Every smtp check's dialogue as the provider read it back."""
+    """Every smtp check's dialogue as the provider read it back, with the
+    account it belongs to — its results live in that account's Prometheus
+    and nowhere else."""
     dialogues = {}
     for resource in resources:
         if resource["type"] != "grafana_synthetic_monitoring_check":
@@ -62,14 +64,17 @@ def state_dialogues(resources):
         if ".smtp[" not in resource["address"]:
             continue
         tcp = resource["values"]["settings"][0]["tcp"][0]
-        dialogues[resource["values"]["job"]] = [
-            {
-                "expect": entry.get("expect") or "",
-                "send": entry.get("send") or "",
-                "start_tls": bool(entry.get("start_tls")),
-            }
-            for entry in tcp.get("query_response") or []
-        ]
+        dialogues[resource["values"]["job"]] = {
+            "account": account_of(resource["address"]),
+            "entries": [
+                {
+                    "expect": entry.get("expect") or "",
+                    "send": entry.get("send") or "",
+                    "start_tls": bool(entry.get("start_tls")),
+                }
+                for entry in tcp.get("query_response") or []
+            ],
+        }
     return dialogues
 
 
@@ -111,7 +116,8 @@ def compare_dialogues(state, stored):
     asserted here — probe_success is the live proof of that, and it is the
     only proof that counts."""
     failures = []
-    for job, declared in sorted(state.items()):
+    for job, check in sorted(state.items()):
+        declared = check["entries"]
         show(f"{job}: as the provider read it back", declared)
         arrived = stored.get(job)
         if arrived is None:
@@ -127,19 +133,43 @@ def compare_dialogues(state, stored):
     return failures
 
 
+def account_of(address):
+    """The module path a resource sits in — one per Grafana account.
+
+    Credentials are per account, and so are the checks that publish against
+    them. Reading either without the other asks one tenant about another
+    tenant's jobs, which reports a working probe as one that never ran.
+    """
+    parts = address.split(".")
+    path = []
+    while len(parts) >= 2 and parts[0] == "module":
+        path += parts[:2]
+        parts = parts[2:]
+    return ".".join(path)
+
+
 def prometheus_credentials(resources):
-    query_url = user = token = None
+    """Read credentials per account, keyed by the module they live in."""
+    accounts = {}
     for resource in resources:
+        account = account_of(resource["address"])
+        if not account:
+            continue
         values = resource["values"]
+        found = accounts.setdefault(account, {"query_url": None, "user": None, "token": None})
         if resource["type"] == "grafana_cloud_stack" and resource.get("mode") == "data":
-            query_url = f"{values['prometheus_url']}/api/prom"
-            user = str(values["prometheus_user_id"])
+            found["query_url"] = f"{values['prometheus_url']}/api/prom"
+            found["user"] = str(values["prometheus_user_id"])
         if (
             resource["type"] == "grafana_cloud_access_policy_token"
             and resource["name"] == "metrics_read"
         ):
-            token = values["token"]
-    return query_url, user, token
+            found["token"] = values["token"]
+    return {
+        account: found
+        for account, found in accounts.items()
+        if all(found[part] for part in ("query_url", "user", "token"))
+    }
 
 
 def probe_results(query_url, auth, jobs):
@@ -201,12 +231,24 @@ def main():
 
     failures = compare_dialogues(state, stored_dialogues(resources))
 
-    query_url, user, token = prometheus_credentials(resources)
-    if not all((query_url, user, token)):
-        failures.append("no Prometheus read credentials in state — cannot read probe results")
-    elif not failures:
-        print(f"== awaiting a first sample from {len(state)} smtp check(s)")
-        failures += await_probes(query_url, user, token, sorted(state))
+    accounts = prometheus_credentials(resources)
+    jobs_by_account = {}
+    for job, check in state.items():
+        jobs_by_account.setdefault(check["account"], []).append(job)
+
+    for account, jobs in sorted(jobs_by_account.items()):
+        if account not in accounts:
+            failures.append(
+                f"{account}: no Prometheus read credentials in state — "
+                f"cannot read results for {', '.join(sorted(jobs))}"
+            )
+    if not failures:
+        for account, jobs in sorted(jobs_by_account.items()):
+            found = accounts[account]
+            print(f"== awaiting a first sample from {len(jobs)} smtp check(s) in {account}")
+            failures += await_probes(
+                found["query_url"], found["user"], found["token"], sorted(jobs)
+            )
 
     if failures:
         sys.exit(
