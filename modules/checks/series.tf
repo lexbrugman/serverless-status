@@ -39,7 +39,7 @@ data "http" "series" {
     urlencode(join("", [
       "grafanacloud_instance_active_series{stack_id=\"${data.grafana_cloud_stack.this.id}\"}",
       " or grafanacloud_instance_metrics_limits{",
-      "limit_name=\"${local.series_limit_name}\",",
+      "limit_name=\"${local.series_ceiling_metric}\",",
       "stack_id=\"${data.grafana_cloud_stack.this.id}\"}",
     ])),
   )
@@ -56,7 +56,9 @@ data "http" "series" {
 output "metrics_series" {
   description = "What this account's checks are costing its metrics allowance: series in use, and the ceiling Grafana enforces before it starts rejecting writes. That ceiling is not the allowance a subscription includes, and is higher — 15k enforced against 10k included on the free tier — so crossing the included figure costs money long before this number is reached. The included figure is published nowhere, which is the same gap monthly_execution_budget exists to fill. Reported rather than asserted: the count follows from what Synthetic Monitoring emits per check per probe location, which Grafana documents nowhere and does not contract to hold steady, so there is nothing here a plan could enforce. Zeroes mean the reading failed rather than that there is room."
   value = {
-    used  = local.series_used
-    limit = local.series_limit
+    used = local.series_used
+    # Not "limit": this is where writes start being rejected, which is
+    # above where the subscription starts being exceeded.
+    enforced_ceiling = local.series_ceiling
   }
 }

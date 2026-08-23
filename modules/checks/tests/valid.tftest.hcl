@@ -296,7 +296,7 @@ run "series_usage_is_read_from_the_account" {
   }
 
   assert {
-    condition     = output.metrics_series.used == 265 && output.metrics_series.limit == 15000
+    condition     = output.metrics_series.used == 265 && output.metrics_series.enforced_ceiling == 15000
     error_message = "the series reading is surfaced as used against the enforced ceiling"
   }
 }
