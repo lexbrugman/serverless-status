@@ -6,6 +6,14 @@ on:
     - cron: "17 5 * * *"
   workflow_dispatch:
 
+# The same group routine CI uses: a drift plan taking the state lock while
+# an apply holds it fails the run for a reason that has nothing to do with
+# drift. cancel-in-progress stays false for the reason it does there — an
+# apply is never the thing that gets superseded.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
