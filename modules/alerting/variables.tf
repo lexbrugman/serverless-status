@@ -1,8 +1,3 @@
-variable "name" {
-  description = "Stack slug, used to name what this module creates inside the stack."
-  type        = string
-}
-
 variable "down_jobs" {
   description = "Checks to alert on when they fail: the Prometheus job label, which is the check key, and how often it runs. The frequency is what sizes the window a verdict is made over, so it travels with the job rather than being assumed. A check with alert: false is absent here."
   type = list(object({

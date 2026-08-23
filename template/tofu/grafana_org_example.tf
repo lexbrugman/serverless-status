@@ -94,7 +94,6 @@ module "alerting_example" {
     grafana.stack = grafana.example_stack
   }
 
-  name = local.config.grafana_orgs["example"].stack_slug
   # Frequencies come from the resolved manifest, not from the config file:
   # a check that states none still runs at its type's default, and the
   # window a verdict is made over is a multiple of whatever it actually is.

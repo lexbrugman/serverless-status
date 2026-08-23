@@ -7,10 +7,11 @@
 locals {
   # One rule, one alert instance per job: Grafana's alerting is
   # multi-dimensional, so a rule per check would be N copies of one idea.
-  # Two audiences: the down rules watch what asked to be paged about, the
-  # not-reporting rule watches everything, because a check that stopped
-  # running is a failure of the monitoring rather than of the thing.
-  down_pattern      = "^(${join("|", sort([for job in var.down_jobs : job.key]))})$"
+  # Two audiences: the down rules watch what asked to be paged about, each
+  # selecting from its own frequency group, while the not-reporting rule
+  # watches every check at once — a check that stopped running is a failure
+  # of the monitoring rather than of the thing, and opting out of one is not
+  # opting out of the other.
   reporting_pattern = "^(${join("|", sort([for job in var.reporting_jobs : job.key]))})$"
 
   # Grafana knows a check by its job label and nothing else. The display

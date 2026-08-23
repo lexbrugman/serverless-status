@@ -7,7 +7,6 @@ mock_provider "grafana" {
 }
 
 variables {
-  name = "examplecorp"
   down_jobs = [
     { key = "api-example-com-https", frequency_minutes = 5 },
     { key = "mx1-example-com-smtp", frequency_minutes = 5 },
