@@ -112,3 +112,44 @@ class TestGlyphsAndFavicon:
         assert uri.startswith("data:image/svg+xml,")
         assert "%23d03b3b" in uri
         assert "<" not in uri and ">" not in uri
+
+
+def _luminance(colour: str) -> float:
+    channels = [int(colour[i : i + 2], 16) / 255 for i in (1, 3, 5)]
+    linear = [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in channels]
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+
+def _contrast(a: str, b: str) -> float:
+    high, low = sorted((_luminance(a), _luminance(b)), reverse=True)
+    return (high + 0.05) / (low + 0.05)
+
+
+class TestBannerInk:
+    """Every overall state is drawn as a filled block with words on it, on
+    the page and alone in the badge. A badge carries no label or tooltip
+    beside it, so its contrast is the whole of what it says."""
+
+    def test_every_state_clears_the_text_threshold(self):
+        for state, meta in theme.OVERALL_STATES.items():
+            ratio = _contrast(theme.color(meta["fill"], "light"), meta["on_fill"])
+            assert ratio >= 4.5, f"{state}: {ratio:.2f}:1 on {meta['fill']}"
+
+    def test_the_banner_css_comes_from_the_same_table(self):
+        """The page and the badge disagreed about partial_outage until both
+        read this; nothing should be able to set one without the other."""
+        rules = theme.banner_rules()
+        for state, meta in theme.OVERALL_STATES.items():
+            assert (
+                f".b-{state}{{background:var(--{meta['fill']});color:{meta['on_fill']}}}" in rules
+            )
+
+    def test_the_check_states_it_covers(self):
+        assert set(theme.OVERALL_STATES) == {
+            "operational",
+            "degraded",
+            "partial_outage",
+            "major_outage",
+            "partial_unknown",
+            "unknown",
+        }

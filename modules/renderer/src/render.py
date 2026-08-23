@@ -152,9 +152,7 @@ h1{{font-size:22px;font-weight:650;letter-spacing:-.01em}}
 .banner .dot{{width:14px;height:14px;border-radius:50%;background:#fff;opacity:.92;flex:none}}
 .banner h2{{font-size:18px;font-weight:650}}
 .banner time{{margin-left:auto;font-size:13px;opacity:.85;text-align:right}}
-.b-operational{{background:var(--ok)}}.b-degraded{{background:var(--warn);color:#3b2a00}}
-.b-partial_outage{{background:var(--serious);color:#3d1503}}.b-major_outage{{background:var(--critical)}}
-.b-unknown,.b-partial_unknown{{background:var(--neutral);color:#1c1917}}
+{theme.banner_rules()}
 .notice{{border:1px solid var(--warn);border-radius:10px;padding:10px 14px;margin:16px 0;
   font-size:14px;background:color-mix(in srgb,var(--warn) 12%,transparent)}}
 .group{{margin:28px 0}}

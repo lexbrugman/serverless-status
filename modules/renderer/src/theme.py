@@ -40,14 +40,33 @@ CHECK_STATES = {
     "unknown": {"label": "No data", "fill": "neutral", "text": "ink_secondary"},
 }
 
+# `on_fill` is the ink each fill carries, every pair at 4.5:1 or better and
+# pinned there by a test. Stated here so the page banner and the badge
+# cannot answer it differently for the same state — they did, and
+# the badge was the one drawing white on a fill too light to hold it. A
+# badge is a lone image with no label or tooltip beside it, so its contrast
+# is the whole of what it communicates.
 OVERALL_STATES = {
-    "operational": {"label": "All systems operational", "fill": "ok"},
-    "degraded": {"label": "Degraded performance", "fill": "warn"},
-    "partial_outage": {"label": "Partial outage", "fill": "serious"},
-    "major_outage": {"label": "Major outage", "fill": "critical"},
-    "partial_unknown": {"label": "Some checks are not reporting", "fill": "neutral"},
-    "unknown": {"label": "Awaiting first data", "fill": "neutral"},
+    "operational": {"label": "All systems operational", "fill": "ok", "on_fill": "#052b05"},
+    "degraded": {"label": "Degraded performance", "fill": "warn", "on_fill": "#3b2a00"},
+    "partial_outage": {"label": "Partial outage", "fill": "serious", "on_fill": "#3d1503"},
+    "major_outage": {"label": "Major outage", "fill": "critical", "on_fill": "#ffffff"},
+    "partial_unknown": {
+        "label": "Some checks are not reporting",
+        "fill": "neutral",
+        "on_fill": "#1c1917",
+    },
+    "unknown": {"label": "Awaiting first data", "fill": "neutral", "on_fill": "#1c1917"},
 }
+
+
+def banner_rules() -> str:
+    """One CSS rule per overall state, from the same table the badge reads."""
+    return "".join(
+        f".b-{state}{{background:var(--{meta['fill']});color:{meta['on_fill']}}}"
+        for state, meta in OVERALL_STATES.items()
+    )
+
 
 # A day reads clean only at 100%: a single failed probe out of ~288 is
 # exactly the kind of blip the bar exists to surface, and the amber step is

@@ -17,8 +17,6 @@ MESSAGES = {
 
 LABEL = "status"
 LABEL_FILL = "#555"
-# Light fills (warn, neutral) need dark text; the rest carry white.
-DARK_TEXT = {"degraded": "#3b2a00", "unknown": "#1c1917", "partial_unknown": "#1c1917"}
 
 FONT_SIZE = 11
 # Average glyph advance for the system sans fonts badges render in at 11px;
@@ -36,7 +34,7 @@ def render_badge(state: dict) -> str:
     overall = state["overall"]
     message = MESSAGES[overall]
     fill = theme.color(theme.OVERALL_STATES[overall]["fill"], "light")
-    text_fill = DARK_TEXT.get(overall, "#fff")
+    text_fill = theme.OVERALL_STATES[overall]["on_fill"]
 
     label_w = _segment_width(LABEL)
     message_w = _segment_width(message)

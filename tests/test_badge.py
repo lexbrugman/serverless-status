@@ -24,9 +24,14 @@ class TestBadge:
             assert root.attrib["role"] == "img"
             assert f"status: {message}" in svg
 
-    def test_light_fills_carry_dark_text(self):
-        assert 'fill="#3b2a00">degraded' in badge.render_badge(state_with_overall("degraded"))
-        assert 'fill="#fff">major outage' in badge.render_badge(state_with_overall("major_outage"))
+    def test_every_state_carries_the_ink_the_page_gives_it(self):
+        """One table decides both, so a badge cannot render a state in an
+        ink the banner would not."""
+        import theme
+
+        for state, meta in theme.OVERALL_STATES.items():
+            svg = badge.render_badge(state_with_overall(state))
+            assert f'fill="{meta["on_fill"]}">{badge.MESSAGES[state]}' in svg
 
     def test_fixture_state_feeds_the_badge(self):
         svg = badge.render_badge(fixtures.build_state("one-down", datetime(2026, 8, 14)))
