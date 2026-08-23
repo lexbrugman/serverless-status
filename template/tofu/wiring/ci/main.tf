@@ -38,10 +38,18 @@ data "aws_iam_policy_document" "state_access" {
   }
 
   statement {
-    # Native locking writes a .tflock object next to the state, so plan
-    # needs writes on the state prefix too.
-    actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+    actions   = ["s3:GetObject"]
     resources = ["arn:aws:s3:::${var.state_bucket}/*"]
+  }
+
+  statement {
+    # Native locking writes a .tflock object beside the state, which is the
+    # only thing a plan writes. Scoped to that suffix rather than the whole
+    # prefix: this role is assumable from any ref in the repository, and
+    # the state it reads is the encrypted history of everything the stack
+    # has ever been.
+    actions   = ["s3:PutObject", "s3:DeleteObject"]
+    resources = ["arn:aws:s3:::${var.state_bucket}/*.tflock"]
   }
 }
 
