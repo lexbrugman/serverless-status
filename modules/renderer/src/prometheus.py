@@ -26,6 +26,12 @@ RANGE_STEP_SECONDS = 900
 RANGE_HOURS = 24
 
 
+def _selector(jobs: list[str]) -> str:
+    """The label matcher every query selects its jobs with, written once so
+    two queries cannot come to disagree about which checks they cover."""
+    return f'{{job=~"^({"|".join(sorted(jobs))})$"}}'
+
+
 def up_query(jobs: list[str], frequency_minutes: int, window_multiple: int, quorum: float) -> str:
     """The one definition of up, shared with the alert rule.
 
@@ -45,7 +51,7 @@ def up_query(jobs: list[str], frequency_minutes: int, window_multiple: int, quor
     # One late probe is tolerated; below that there is not enough in the
     # window to judge, and guessing is what a debounce exists to avoid.
     min_samples = max(1, window_multiple - 1)
-    selector = f'probe_success{{job=~"^({"|".join(sorted(jobs))})$"}}'
+    selector = f"probe_success{_selector(jobs)}"
     ratio = (
         f"sum by (job) (sum_over_time({selector}[{window}m]))"
         f" / sum by (job) (count_over_time({selector}[{window}m]))"
@@ -111,10 +117,6 @@ def budget_counts_queries(jobs: list[str], budget_seconds: float) -> tuple[str, 
     return tuple(part.format(selector=selector, budget=budget_seconds) for part in BUDGET_COUNTS)
 
 
-def _selector(jobs: list[str]) -> str:
-    return f'{{job=~"^({"|".join(sorted(jobs))})$"}}'
-
-
 def success_counts_queries(jobs: list[str]) -> tuple[str, str]:
     """(locations succeeding, locations reporting) per instant. The verdict
     window is applied over these in the renderer rather than in PromQL,
@@ -128,7 +130,7 @@ def day_totals_queries(jobs: list[str], elapsed_seconds: int) -> tuple[str, str]
     """(executions, successes) so far in the day, for the rollup. Recomputed
     from the source rather than incremented, so a retry cannot double-count
     what it recalculates."""
-    selector = f'probe_success{{job=~"^({"|".join(sorted(jobs))})$"}}'
+    selector = f"probe_success{_selector(jobs)}"
     window = f"[{elapsed_seconds}s]"
     return (
         f"sum by (job) (count_over_time({selector}{window}))",
