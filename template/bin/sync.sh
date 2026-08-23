@@ -9,13 +9,22 @@
 # Usage: sync.sh [REF]   (default: the ref pinned in tofu/page.tf)
 set -euo pipefail
 
-# Re-exec from a copy: the sync replaces this script itself.
-if [[ "${SYNC_REEXEC:-}" != "1" ]]; then
+# Re-exec from a copy: the sync replaces this script itself, and a shell
+# reads its script lazily — running on from a file that changed underneath
+# is how a half-old, half-new sync happens.
+if [[ -z "${SYNC_REEXEC:-}" ]]; then
   self_copy="$(mktemp)"
   cp "${BASH_SOURCE[0]}" "$self_copy"
   chmod +x "$self_copy"
-  SYNC_REEXEC=1 exec "$self_copy" "$@"
+  SYNC_REEXEC="$self_copy" exec "$self_copy" "$@"
 fi
+
+# This shell already holds the copy open, so unlinking it now costs nothing
+# and strands nothing. It names the copy rather than BASH_SOURCE, because
+# the handover further down execs the release's own sync.sh and by then
+# BASH_SOURCE is a file that belongs to somebody. A trap could not do it
+# either: an exec takes every trap with it.
+rm -f "$SYNC_REEXEC"
 
 source_dir=""
 target=""

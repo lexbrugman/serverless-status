@@ -6,6 +6,7 @@ outage records written on transition — the data *is* the incident log.
 """
 
 from datetime import datetime
+from decimal import Decimal
 
 import boto3
 from boto3.dynamodb.conditions import Key
@@ -30,7 +31,7 @@ def _plain(value):
         return {k: _plain(v) for k, v in value.items()}
     if isinstance(value, list):
         return [_plain(v) for v in value]
-    if value.__class__.__name__ == "Decimal":
+    if isinstance(value, Decimal):
         return int(value) if value == int(value) else float(value)
     return value
 
