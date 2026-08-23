@@ -9,7 +9,7 @@ NOW = datetime(2026, 8, 14, 12, 0, 0)
 
 @pytest.fixture
 def server():
-    instance = mock_prometheus.serve("all-green", 0)
+    instance = mock_prometheus.serve("all-green", 0, NOW)
     yield instance
     instance.shutdown()
     mock_prometheus.PrometheusHandler.status_code = 200
@@ -32,7 +32,10 @@ class TestHTTP:
 
     def test_range_query_parses_to_series(self, server):
         series = prometheus.latency_range(credentials(server), NOW)
-        assert len(series["website"]) == 96
+        assert len(series["website"]) == 97
+        assert all(value is not None for _, value in series["website"]), (
+            "a window the probe covered end to end has no holes in it"
+        )
 
     def test_http_error_raises_prometheus_error(self, server):
         mock_prometheus.PrometheusHandler.status_code = 500

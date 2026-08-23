@@ -89,8 +89,10 @@ def _within(payload: dict, start: float) -> dict:
     }
 
 
-def serve(state_name: str, port: int) -> ThreadingHTTPServer:
-    PrometheusHandler.responses = responses_for(state_name, datetime.now(UTC).replace(tzinfo=None))
+def serve(state_name: str, port: int, now: datetime | None = None) -> ThreadingHTTPServer:
+    PrometheusHandler.responses = responses_for(
+        state_name, now or datetime.now(UTC).replace(tzinfo=None)
+    )
     server = ThreadingHTTPServer(("0.0.0.0", port), PrometheusHandler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server

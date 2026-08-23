@@ -91,17 +91,21 @@ def _frequency_minutes(check: dict) -> int:
     return 10 if check["type"] == "ping" else 5
 
 
+RANGE_POINTS = 97
+
+
 def _range_series(mani: dict, now: datetime, slow_api: bool) -> dict:
-    """96 points, 15-minute step, ending now."""
+    """The 24-hour grid a range query returns: both ends inclusive, so 97
+    points at a 15-minute step, the last of them now."""
     series = {}
     for key in mani["checks"]:
         rng = random.Random(f"range:{key}")
         base = BASE_LATENCY_SECONDS[key]
         points = []
-        for i in range(96):
-            ts = _ts(now) - (95 - i) * 900
+        for i in range(RANGE_POINTS):
+            ts = _ts(now) - (RANGE_POINTS - 1 - i) * 900
             value = base * rng.uniform(0.85, 1.35)
-            if slow_api and key == "api" and i > 88:
+            if slow_api and key == "api" and i > 89:
                 value = 2.4 * rng.uniform(0.9, 1.1)
             points.append((ts, round(value, 4)))
         series[key] = points
