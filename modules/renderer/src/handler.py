@@ -253,7 +253,7 @@ def series_start(mani: dict, previous: dict | None, now: datetime) -> datetime:
     mark = (previous or {}).get("processed_through")
     if not mark:
         return horizon
-    resume = datetime.strptime(mark, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC) - pad
+    resume = state.parse_iso(mark) - pad
     return max(resume, horizon)
 
 

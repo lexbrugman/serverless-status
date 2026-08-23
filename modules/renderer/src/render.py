@@ -8,14 +8,14 @@ the thing it reports on.
 
 import html
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from zoneinfo import ZoneInfo
 
 import theme
 
 # By name, not as a module: `state` is the parameter every renderer here
-# takes. One definition of what falls inside a window, shared with the
-# assembly that wrote the log.
+# takes. One definition of what falls inside a window, and one of how a
+# stored timestamp reads, shared with the assembly that wrote the log.
 from state import in_window, parse_iso
 
 STATUS_SCHEMA_VERSION = 3
@@ -29,13 +29,11 @@ def _esc(value) -> str:
 # here it is known good. A silent drop to UTC would render every timestamp
 # an hour or two wrong and look entirely correct doing it.
 def _local_time(iso_utc: str, timezone: str) -> str:
-    moment = datetime.strptime(iso_utc, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
-    return moment.astimezone(ZoneInfo(timezone)).strftime("%d %b %Y, %H:%M %Z")
+    return parse_iso(iso_utc).astimezone(ZoneInfo(timezone)).strftime("%d %b %Y, %H:%M %Z")
 
 
 def _short_time(iso_utc: str, timezone: str) -> str:
-    moment = datetime.strptime(iso_utc, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
-    return moment.astimezone(ZoneInfo(timezone)).strftime("%d %b %H:%M")
+    return parse_iso(iso_utc).astimezone(ZoneInfo(timezone)).strftime("%d %b %H:%M")
 
 
 def humanize_duration(seconds: float | None) -> str:
