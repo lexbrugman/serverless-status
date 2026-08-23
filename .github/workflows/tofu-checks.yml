@@ -10,16 +10,33 @@ permissions:
   contents: read
 
 jobs:
+  # The matrix is discovered, not listed. A named list can go short without
+  # going empty, and the module it forgot stays green because the only job
+  # that would notice is not pointed at it — which is how an unused
+  # declaration lived in modules/alerting until somebody ran the job by hand.
+  modules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      list: ${{ steps.discover.outputs.list }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Discover the modules
+        id: discover
+        run: echo "list=$(scripts/list-modules.sh)" >> "$GITHUB_OUTPUT"
+
   tofu-checks:
+    needs: [modules]
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
     strategy:
       fail-fast: false
       matrix:
-        module:
-          - modules/checks
-          - modules/renderer
+        module: ${{ fromJSON(needs.modules.outputs.list) }}
 
     steps:
       - name: Check out repository
