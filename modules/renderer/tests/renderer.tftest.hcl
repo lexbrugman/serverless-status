@@ -128,19 +128,6 @@ run "configuration" {
   }
 }
 
-run "unmanaged_dns_creates_no_records" {
-  command = plan
-
-  variables {
-    manage_dns = false
-  }
-
-  assert {
-    condition     = length(aws_route53_record.alias) == 0 && length(aws_route53_record.validation) == 0
-    error_message = "manage_dns = false must not touch any zone"
-  }
-}
-
 run "mismatched_manifest_schema_fails_the_plan" {
   command = plan
 

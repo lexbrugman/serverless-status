@@ -15,8 +15,6 @@ resource "aws_acm_certificate" "page" {
 resource "aws_acm_certificate_validation" "page" {
   provider = aws.us_east_1
 
-  certificate_arn = aws_acm_certificate.page.arn
-  validation_record_fqdns = var.manage_dns ? [
-    for record in aws_route53_record.validation : record.fqdn
-  ] : null
+  certificate_arn         = aws_acm_certificate.page.arn
+  validation_record_fqdns = [for record in aws_route53_record.validation : record.fqdn]
 }

@@ -13,12 +13,6 @@ variable "dns_zone_name" {
   type        = string
 }
 
-variable "manage_dns" {
-  description = "Create the validation and alias records in the zone. When false, the records are emitted as outputs for an externally-managed zone."
-  type        = bool
-  default     = true
-}
-
 variable "site" {
   description = "Page identity — the renderer's own concern, not any one stack's."
   type = object({

@@ -1,8 +1,10 @@
 # The zone predates this module and is looked up, never created: destroying
-# this stack must never be able to take down the zone.
+# this stack must never be able to take down the zone. The records inside it
+# are this module's, though — a page whose certificate validates and whose
+# alias resolves is what a finished apply means, and handing those back as
+# outputs for someone to create by hand cannot be squared with an apply that
+# blocks on issuance.
 data "aws_route53_zone" "page" {
-  count = var.manage_dns ? 1 : 0
-
   name = var.dns_zone_name
 }
 
@@ -17,9 +19,9 @@ locals {
 # import expands every resource without planning the certificate, so
 # computed keys would make the whole graph unresolvable there.
 resource "aws_route53_record" "validation" {
-  for_each = var.manage_dns ? toset([var.domain]) : toset([])
+  for_each = toset([var.domain])
 
-  zone_id = data.aws_route53_zone.page[0].zone_id
+  zone_id = data.aws_route53_zone.page.zone_id
   name    = local.validation_options[each.value].resource_record_name
   type    = local.validation_options[each.value].resource_record_type
   ttl     = 300
@@ -27,9 +29,9 @@ resource "aws_route53_record" "validation" {
 }
 
 resource "aws_route53_record" "alias" {
-  for_each = var.manage_dns ? toset(["A", "AAAA"]) : toset([])
+  for_each = toset(["A", "AAAA"])
 
-  zone_id = data.aws_route53_zone.page[0].zone_id
+  zone_id = data.aws_route53_zone.page.zone_id
   name    = var.domain
   type    = each.value
 
