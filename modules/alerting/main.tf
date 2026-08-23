@@ -54,6 +54,12 @@ locals {
     "(sum by (job) (count_over_time(${local.selectors[frequency]}[${local.windows[frequency]}m])) >= ${local.min_samples})",
   ]) }
 
+  # One name for everything this module creates inside the stack — the
+  # datasource, the folder, the contact point, the rule group, and the
+  # label every rule carries — so a stack's owner can tell at a glance
+  # what put them there, and find the whole set by the label.
+  name = "serverless-status"
+
   query_ref     = "probe"
   threshold_ref = "failing"
 
@@ -89,7 +95,7 @@ resource "grafana_data_source" "metrics" {
   provider = grafana.stack
 
   type                = "prometheus"
-  name                = "serverless-status"
+  name                = local.name
   url                 = var.prometheus.query_url
   basic_auth_enabled  = true
   basic_auth_username = var.prometheus.user
@@ -102,13 +108,13 @@ resource "grafana_data_source" "metrics" {
 resource "grafana_folder" "alerts" {
   provider = grafana.stack
 
-  title = "serverless-status"
+  title = local.name
 }
 
 resource "grafana_contact_point" "operators" {
   provider = grafana.stack
 
-  name = "serverless-status"
+  name = local.name
 
   email {
     addresses = var.email_addresses
@@ -136,7 +142,7 @@ resource "grafana_contact_point" "operators" {
 resource "grafana_rule_group" "down" {
   provider = grafana.stack
 
-  name             = "serverless-status"
+  name             = local.name
   folder_uid       = grafana_folder.alerts.uid
   interval_seconds = 60
 
@@ -198,7 +204,7 @@ resource "grafana_rule_group" "down" {
       }
 
       labels = {
-        source = "serverless-status"
+        source = local.name
       }
 
       annotations = {
@@ -269,7 +275,7 @@ resource "grafana_rule_group" "down" {
     }
 
     labels = {
-      source = "serverless-status"
+      source = local.name
     }
 
     annotations = {
@@ -339,7 +345,7 @@ resource "grafana_rule_group" "down" {
     }
 
     labels = {
-      source = "serverless-status"
+      source = local.name
     }
 
     annotations = {
