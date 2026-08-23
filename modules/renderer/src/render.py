@@ -184,8 +184,13 @@ h1{{font-size:22px;font-weight:650;letter-spacing:-.01em}}
 .bar{{flex:1;height:28px;display:block}}
 .d-up{{fill:var(--ok)}}.d-slow{{fill:var(--warn)}}.d-down{{fill:var(--critical)}}
 .d-unknown{{fill:var(--neutral);opacity:.45}}
-.ratio{{font-size:13px;color:var(--ink-secondary);font-variant-numeric:tabular-nums;
-  text-align:right;white-space:nowrap}}
+/* Fixed, not sized to its text: the bar beside it is flex:1, so a figure
+   one character wider — 100.00% against 99.99% — would take that character
+   out of the bar and leave the column ragged down the page. Bars are
+   compared to each other by eye, which only works if they are the same
+   length. */
+.ratio{{flex:0 0 10em;font-size:13px;color:var(--ink-secondary);
+  font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}}
 .bar-caption{{display:flex;justify-content:space-between;color:var(--ink-muted);
   font-size:11px;margin-top:4px}}
 .windows{{display:flex;justify-content:space-between;flex-wrap:wrap;gap:2px 16px;

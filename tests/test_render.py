@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime
 
 import fixtures
@@ -239,3 +240,19 @@ class TestRenderStatus:
         assert by_key["website"]["performance"] is None
         assert status["incidents"][0]["ended_at"] is None
         assert {i["kind"] for i in status["incidents"]} <= {"down", "slow"}
+
+
+class TestBarWidth:
+    def test_the_figure_beside_the_bar_has_a_fixed_width(self):
+        """The bar is flex:1, so anything sized to its own text next to it
+        takes width out of the bar. A 100.00% row would draw a shorter bar
+        than a 99.99% one, and bars are read by comparing them."""
+        page = render.render_page(fixtures.build_state("all-green", NOW))
+        assert ".ratio{flex:0 0 10em" in page
+
+    def test_every_bar_in_a_page_is_the_same_width(self):
+        """viewBox width comes from the number of days, which is the page's
+        history window — identical for every check by construction."""
+        page = render.render_page(fixtures.build_state("degraded-slow", NOW))
+        widths = set(re.findall(r'class="bar" viewBox="0 0 (\d+) 28"', page))
+        assert len(widths) == 1, f"bars drawn at differing widths: {widths}"
