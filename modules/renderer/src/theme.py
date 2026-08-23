@@ -40,30 +40,58 @@ CHECK_STATES = {
     "unknown": {"label": "No data", "fill": "neutral", "text": "ink_secondary"},
 }
 
-# `on_fill` is the ink each fill carries, every pair at 4.5:1 or better and
-# pinned there by a test. Stated here so the page banner and the badge
-# cannot answer it differently for the same state — they did, and
-# the badge was the one drawing white on a fill too light to hold it. A
-# badge is a lone image with no label or tooltip beside it, so its contrast
-# is the whole of what it communicates.
+# Two inks per state, because the two surfaces are held to different bars.
+# The banner sets its label as large text, which clears at 3:1; the badge
+# sets the same words at 11px, which does not — so a fill light enough to
+# carry white on one is not light enough on the other. Stating both here
+# keeps them one decision: the badge used to disagree with the banner about
+# partial_outage, and drew white on a fill that could not hold it.
+#
+# Both are pinned by a test at the threshold that applies to them.
 OVERALL_STATES = {
-    "operational": {"label": "All systems operational", "fill": "ok", "on_fill": "#052b05"},
-    "degraded": {"label": "Degraded performance", "fill": "warn", "on_fill": "#3b2a00"},
-    "partial_outage": {"label": "Partial outage", "fill": "serious", "on_fill": "#3d1503"},
-    "major_outage": {"label": "Major outage", "fill": "critical", "on_fill": "#ffffff"},
+    "operational": {
+        "label": "All systems operational",
+        "fill": "ok",
+        "banner_ink": "#ffffff",
+        "badge_ink": "#052b05",
+    },
+    "degraded": {
+        "label": "Degraded performance",
+        "fill": "warn",
+        "banner_ink": "#3b2a00",
+        "badge_ink": "#3b2a00",
+    },
+    "partial_outage": {
+        "label": "Partial outage",
+        "fill": "serious",
+        "banner_ink": "#3d1503",
+        "badge_ink": "#3d1503",
+    },
+    "major_outage": {
+        "label": "Major outage",
+        "fill": "critical",
+        "banner_ink": "#ffffff",
+        "badge_ink": "#ffffff",
+    },
     "partial_unknown": {
         "label": "Some checks are not reporting",
         "fill": "neutral",
-        "on_fill": "#1c1917",
+        "banner_ink": "#1c1917",
+        "badge_ink": "#1c1917",
     },
-    "unknown": {"label": "Awaiting first data", "fill": "neutral", "on_fill": "#1c1917"},
+    "unknown": {
+        "label": "Awaiting first data",
+        "fill": "neutral",
+        "banner_ink": "#1c1917",
+        "badge_ink": "#1c1917",
+    },
 }
 
 
 def banner_rules() -> str:
     """One CSS rule per overall state, from the same table the badge reads."""
     return "".join(
-        f".b-{state}{{background:var(--{meta['fill']});color:{meta['on_fill']}}}"
+        f".b-{state}{{background:var(--{meta['fill']});color:{meta['banner_ink']}}}"
         for state, meta in OVERALL_STATES.items()
     )
 

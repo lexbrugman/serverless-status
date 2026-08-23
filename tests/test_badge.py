@@ -31,7 +31,7 @@ class TestBadge:
 
         for state, meta in theme.OVERALL_STATES.items():
             svg = badge.render_badge(state_with_overall(state))
-            assert f'fill="{meta["on_fill"]}">{badge.MESSAGES[state]}' in svg
+            assert f'fill="{meta["badge_ink"]}">{badge.MESSAGES[state]}' in svg
 
     def test_fixture_state_feeds_the_badge(self):
         svg = badge.render_badge(fixtures.build_state("one-down", datetime(2026, 8, 14)))

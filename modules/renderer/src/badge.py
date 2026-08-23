@@ -34,7 +34,7 @@ def render_badge(state: dict) -> str:
     overall = state["overall"]
     message = MESSAGES[overall]
     fill = theme.color(theme.OVERALL_STATES[overall]["fill"], "light")
-    text_fill = theme.OVERALL_STATES[overall]["on_fill"]
+    text_fill = theme.OVERALL_STATES[overall]["badge_ink"]
 
     label_w = _segment_width(LABEL)
     message_w = _segment_width(message)

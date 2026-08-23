@@ -150,7 +150,7 @@ h1{{font-size:22px;font-weight:650;letter-spacing:-.01em}}
 .banner{{display:flex;align-items:center;gap:14px;border-radius:12px;padding:18px 20px;
   margin:20px 0;color:#fff}}
 .banner .dot{{width:14px;height:14px;border-radius:50%;background:#fff;opacity:.92;flex:none}}
-.banner h2{{font-size:18px;font-weight:650}}
+.banner h2{{font-size:19px;font-weight:700}}
 .banner time{{margin-left:auto;font-size:13px;opacity:.85;text-align:right}}
 {theme.banner_rules()}
 .notice{{border:1px solid var(--warn);border-radius:10px;padding:10px 14px;margin:16px 0;

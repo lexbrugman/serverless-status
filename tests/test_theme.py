@@ -125,15 +125,23 @@ def _contrast(a: str, b: str) -> float:
     return (high + 0.05) / (low + 0.05)
 
 
-class TestBannerInk:
-    """Every overall state is drawn as a filled block with words on it, on
-    the page and alone in the badge. A badge carries no label or tooltip
-    beside it, so its contrast is the whole of what it says."""
+class TestStateInk:
+    """Every overall state is a filled block with words on it — set large in
+    the page banner, and at 11px alone in the badge. Different sizes are
+    held to different contrast bars, which is why the two inks may differ
+    and why neither can be guessed at the call site."""
 
-    def test_every_state_clears_the_text_threshold(self):
+    def test_the_banner_clears_the_large_text_bar(self):
         for state, meta in theme.OVERALL_STATES.items():
-            ratio = _contrast(theme.color(meta["fill"], "light"), meta["on_fill"])
-            assert ratio >= 4.5, f"{state}: {ratio:.2f}:1 on {meta['fill']}"
+            ratio = _contrast(theme.color(meta["fill"], "light"), meta["banner_ink"])
+            assert ratio >= 3.0, f"{state} banner: {ratio:.2f}:1 on {meta['fill']}"
+
+    def test_the_badge_clears_the_normal_text_bar(self):
+        """A badge is a lone image with no label or tooltip beside it, and
+        its words are small — so its contrast is the whole of what it says."""
+        for state, meta in theme.OVERALL_STATES.items():
+            ratio = _contrast(theme.color(meta["fill"], "light"), meta["badge_ink"])
+            assert ratio >= 4.5, f"{state} badge: {ratio:.2f}:1 on {meta['fill']}"
 
     def test_the_banner_css_comes_from_the_same_table(self):
         """The page and the badge disagreed about partial_outage until both
@@ -141,7 +149,8 @@ class TestBannerInk:
         rules = theme.banner_rules()
         for state, meta in theme.OVERALL_STATES.items():
             assert (
-                f".b-{state}{{background:var(--{meta['fill']});color:{meta['on_fill']}}}" in rules
+                f".b-{state}{{background:var(--{meta['fill']});color:{meta['banner_ink']}}}"
+                in rules
             )
 
     def test_the_check_states_it_covers(self):
