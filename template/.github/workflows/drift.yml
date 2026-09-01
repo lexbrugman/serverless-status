@@ -35,7 +35,7 @@ jobs:
         uses: ./.github/actions/setup-tofu
 
       - name: Assume the plan role
-        uses: aws-actions/configure-aws-credentials@v6.2.3
+        uses: aws-actions/configure-aws-credentials@v6.2.4
         with:
           role-to-assume: ${{ inputs.plan_role_arn }}
           aws-region: ${{ env.AWS_REGION }}
