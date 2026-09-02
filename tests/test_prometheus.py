@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 import prometheus
 import pytest
 
@@ -51,6 +53,49 @@ class TestParseMatrix:
         response = {"status": "success", "data": {"resultType": "vector", "result": []}}
         with pytest.raises(prometheus.PrometheusError, match="expected matrix"):
             prometheus.parse_matrix(response)
+
+
+class TestRangeGrid:
+    """query_range places its samples at start + k*step, so a start that
+    moves between runs moves every sample with it. A period is keyed by the
+    moment it began, so a grid that shifts hands the same outage a different
+    key each run — and the record it should have matched is not there."""
+
+    @staticmethod
+    def captured(monkeypatch) -> dict:
+        seen: dict = {}
+
+        def request(credentials, path, params):
+            seen.update(params)
+            return {"status": "success", "data": {"resultType": "matrix", "result": []}}
+
+        monkeypatch.setattr(prometheus, "_request", request)
+        return seen
+
+    def test_the_start_is_anchored_to_a_multiple_of_the_step(self, monkeypatch):
+        seen = self.captured(monkeypatch)
+        prometheus.series(
+            {}, "q", datetime(2026, 8, 14, 12, 3, 17), datetime(2026, 8, 14, 12, 30), 300
+        )
+        assert seen["start"] % 300 == 0
+
+    def test_starts_within_one_step_share_a_grid(self, monkeypatch):
+        """Consecutive runs resume from different watermarks; the samples
+        they read must still carry the same timestamps."""
+        end = datetime(2026, 8, 14, 12, 30)
+        seen = self.captured(monkeypatch)
+        prometheus.series({}, "q", datetime(2026, 8, 14, 11, 41, 9), end, 300)
+        first = seen["start"]
+        prometheus.series({}, "q", datetime(2026, 8, 14, 11, 44, 52), end, 300)
+        assert seen["start"] == first
+
+    def test_the_anchor_never_moves_the_start_later(self, monkeypatch):
+        """Rounding forward would drop the very sample the caller reached
+        back for."""
+        seen = self.captured(monkeypatch)
+        start = datetime(2026, 8, 14, 12, 3, 17)
+        prometheus.series({}, "q", start, datetime(2026, 8, 14, 12, 30), 300)
+        assert seen["start"] <= start.replace(tzinfo=UTC).timestamp()
 
 
 class TestUpQuery:

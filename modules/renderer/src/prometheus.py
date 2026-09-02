@@ -138,12 +138,28 @@ def day_totals_queries(jobs: list[str], elapsed_seconds: int) -> tuple[str, str]
     )
 
 
+def anchored(start: datetime, step: int) -> float:
+    """The grid point at or before `start`.
+
+    query_range places its samples at start + k*step, so a start that moves
+    between runs moves every sample with it. Runs resume from wherever the
+    last one stopped reading, which is not a whole number of steps away, so
+    without an anchor one check's samples carry different timestamps every
+    run. A period is keyed by the moment it began, and a key that moves is
+    a record the next run cannot find.
+
+    Backwards, never forwards: rounding up would drop the very sample the
+    caller reached back for.
+    """
+    return _epoch(start) // step * step
+
+
 def series(credentials: dict, query: str, start: datetime, end: datetime, step: int) -> dict:
     """A range query at an explicit step, for walking samples over time."""
     response = _request(
         credentials,
         "/api/v1/query_range",
-        {"query": query, "start": _epoch(start), "end": _epoch(end), "step": step},
+        {"query": query, "start": anchored(start, step), "end": _epoch(end), "step": step},
     )
     return parse_matrix(response)
 
