@@ -162,7 +162,23 @@ def query_metrics(mani: dict, now: datetime, today: date, since: datetime) -> tu
         return read, True
 
 
-def record_history(tbl, mani: dict, previous: dict | None, read: dict, now, today) -> str | None:
+def open_periods(tbl, mani: dict) -> dict[tuple[str, str], str]:
+    """{(kind, key): started_at} for every period still open.
+
+    Read before the series is, because it decides how far back the series
+    has to reach as well as what the walk resumes from."""
+    found = {}
+    for key in mani["checks"]:
+        for kind in (store.OUTAGE, store.DEGRADED):
+            started_at = store.open_start(tbl, kind, key)
+            if started_at:
+                found[(kind, key)] = started_at
+    return found
+
+
+def record_history(
+    tbl, mani: dict, previous: dict | None, read: dict, now, today, opens: dict
+) -> str | None:
     """Outages come from walking the series, so one survives the renderer
     having been down and carries a probe's timestamp rather than a render's.
     The day's rollup is recomputed from the source rather than incremented.
@@ -179,10 +195,18 @@ def record_history(tbl, mani: dict, previous: dict | None, read: dict, now, toda
         cached = previous_checks.get(key, {})
         # Outages and degradations are the same walk over two fraction
         # series: one definition of a confirmed period, applied twice.
-        for field, kind, before in (
+        for field, kind, cached_state in (
             ("down_samples", store.OUTAGE, cached.get("up")),
             ("budget_samples", store.DEGRADED, cached.get("within_budget")),
         ):
+            # An open record is what says the check was already in this
+            # state, and it is the only place that is authoritative: the
+            # snapshot's verdict comes from the instant query rather than
+            # from this walk, so the two can part company by a sample at
+            # the moment one confirms. Believing the snapshot there stamps
+            # a fresh start for a period that is already open, and the
+            # second record counts its own overlap against every figure.
+            before = False if (kind, key) in opens else cached_state
             series = read[field].get(key, [])
             if series:
                 watermark = series[-1][0] if watermark is None else max(watermark, series[-1][0])
@@ -236,13 +260,20 @@ def report_observations(mani: dict, success: dict | None, now: datetime, degrade
 SERIES_HORIZON_DAYS = 13
 
 
-def series_start(mani: dict, previous: dict | None, now: datetime) -> datetime:
+def series_start(mani: dict, previous: dict | None, now: datetime, opens: dict) -> datetime:
     """Where to resume reading.
 
     Behind the watermark by a whole verdict window, not at it: a verdict
     needs several samples, and one run only ever adds one. Re-reading is
     free — an outage is keyed by the moment it started, so recording the
     same one twice writes the same record.
+
+    And back to the start of anything still open, because that window is
+    sized to fill a verdict rather than to reach the edge of a run. A
+    period outlasting it is read from inside itself, where the series holds
+    no transition to stamp and the walk's own first sample is all there is
+    to reach for — which dates the recovery from wherever the reading began
+    rather than from where it happened.
 
     A run that never completed left the watermark where it was, so the gap
     is walked whole rather than lost.
@@ -253,7 +284,7 @@ def series_start(mani: dict, previous: dict | None, now: datetime) -> datetime:
     mark = (previous or {}).get("processed_through")
     if not mark:
         return horizon
-    resume = state.parse_iso(mark) - pad
+    resume = min([state.parse_iso(mark) - pad] + [state.parse_iso(at) for at in opens.values()])
     return max(resume, horizon)
 
 
@@ -267,11 +298,12 @@ def render_handler(event, context):
     tbl = store.table(os.environ["TABLE_NAME"], os.environ.get("DDB_ENDPOINT"))
 
     previous = store.get_latest(tbl)
-    since = series_start(mani, previous, now)
+    opens = open_periods(tbl, mani)
+    since = series_start(mani, previous, now, opens)
     read, degraded = query_metrics(mani, now, today, since)
     processed_through = None
     if not degraded:
-        processed_through = record_history(tbl, mani, previous, read, now, today)
+        processed_through = record_history(tbl, mani, previous, read, now, today, opens)
     rollups, outage_records, degraded_records = read_history(tbl, mani, today)
     success, duration = read["success"], read["duration"]
 

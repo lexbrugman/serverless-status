@@ -103,6 +103,17 @@ class TestOutages:
         assert len(records) == 1
         assert records[0]["duration_seconds"] == 600
 
+    def test_close_drains_every_open_period(self, tbl):
+        """A recovery ends whatever was open, not the newest of it. One
+        record left behind outlives the outage it describes, and every
+        figure measured against the log counts it as still running."""
+        store.open_period(tbl, store.OUTAGE, "mail", "2026-08-14T11:20:00Z", 1)
+        store.open_period(tbl, store.OUTAGE, "mail", "2026-08-14T11:37:00Z", 1)
+        store.close_period(tbl, store.OUTAGE, "mail", "2026-08-14T11:50:00Z")
+        records = store.periods(tbl, store.OUTAGE, "mail")
+        assert len(records) == 2
+        assert [r["ended_at"] for r in records] == ["2026-08-14T11:50:00Z"] * 2
+
     def test_the_two_kinds_of_period_do_not_collide(self, tbl):
         """One record shape under two prefixes: a degradation is not an
         outage, and neither read may see the other."""
@@ -125,6 +136,33 @@ class TestOutages:
         records = store.periods(tbl, store.OUTAGE, "mail")
         assert records[0]["ended_at"] is None
         assert records[0]["duration_seconds"] is None
+
+
+class TestOpenStart:
+    """What the walk resumes from. The records are where being mid-outage is
+    authoritative; a snapshot written by a different query is not."""
+
+    def test_it_reports_the_still_open_period(self, tbl):
+        store.open_period(tbl, store.OUTAGE, "mail", "2026-08-14T11:37:00Z", 1)
+        assert store.open_start(tbl, store.OUTAGE, "mail") == "2026-08-14T11:37:00Z"
+
+    def test_a_closed_period_leaves_nothing_open(self, tbl):
+        store.open_period(tbl, store.OUTAGE, "mail", "2026-08-14T11:37:00Z", 1)
+        store.close_period(tbl, store.OUTAGE, "mail", "2026-08-14T11:50:00Z")
+        assert store.open_start(tbl, store.OUTAGE, "mail") is None
+
+    def test_a_check_with_no_records_has_nothing_open(self, tbl):
+        assert store.open_start(tbl, store.OUTAGE, "mail") is None
+
+    def test_the_other_kind_does_not_answer_for_this_one(self, tbl):
+        store.open_period(tbl, store.DEGRADED, "mail", "2026-08-14T11:37:00Z", 1)
+        assert store.open_start(tbl, store.OUTAGE, "mail") is None
+
+    def test_the_oldest_open_period_wins(self, tbl):
+        """The walk has to reach the edge that closes the earliest of them."""
+        store.open_period(tbl, store.OUTAGE, "mail", "2026-08-14T09:00:00Z", 1)
+        store.open_period(tbl, store.OUTAGE, "mail", "2026-08-14T11:37:00Z", 1)
+        assert store.open_start(tbl, store.OUTAGE, "mail") == "2026-08-14T09:00:00Z"
 
 
 class TestPlain:

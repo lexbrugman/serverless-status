@@ -126,17 +126,40 @@ def open_period(tbl, kind: str, key: str, started_at: str, expires_at: int) -> N
     )
 
 
-def close_period(tbl, kind: str, key: str, ended_at: str) -> None:
-    """Close the newest still-open period of this kind, deriving the duration
-    from the record's own started_at. A missing open record (first run after
-    a redeploy, or a transition seen twice) is not an error — there is simply
-    nothing to close."""
-    response = tbl.query(
+def _recent(tbl, kind: str, key: str) -> list[dict]:
+    """This check's newest periods of one kind, newest first."""
+    return tbl.query(
         KeyConditionExpression=Key("PK").eq(f"CHECK#{key}") & Key("SK").begins_with(f"{kind}#"),
         ScanIndexForward=False,
         Limit=5,
-    )
-    for item in response["Items"]:
+    )["Items"]
+
+
+def open_start(tbl, kind: str, key: str) -> str | None:
+    """When the still-open period of this kind began, or None.
+
+    This is where being mid-period is authoritative. A walk that resumes
+    inside one carries no edge to stamp, so it must be told rather than
+    left to infer, and the snapshot cannot tell it: that is written from
+    the instant query, not from the walk these records come out of.
+
+    The oldest open one, because it is the edge furthest back that a walk
+    still has to reach.
+    """
+    starts = [item["started_at"] for item in _recent(tbl, kind, key) if "ended_at" not in item]
+    return min(starts, default=None)
+
+
+def close_period(tbl, kind: str, key: str, ended_at: str) -> None:
+    """Close every still-open period of this kind, deriving each duration
+    from its own started_at. A missing open record (first run after a
+    redeploy, or a transition seen twice) is not an error — there is simply
+    nothing to close.
+
+    Every one of them, not the newest: a recovery ends whatever was open,
+    and a record left behind outlives the outage it describes while every
+    figure measured against the log keeps counting it as running."""
+    for item in _recent(tbl, kind, key):
         if "ended_at" not in item:
             fmt = "%Y-%m-%dT%H:%M:%SZ"
             # A series re-walked from further back can offer a closing edge
@@ -155,7 +178,6 @@ def close_period(tbl, kind: str, key: str, ended_at: str) -> None:
                 UpdateExpression="SET ended_at = :e, duration_seconds = :d",
                 ExpressionAttributeValues={":e": ended_at, ":d": duration},
             )
-            return
 
 
 def periods(tbl, kind: str, key: str) -> list[dict]:

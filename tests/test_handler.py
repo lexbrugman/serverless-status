@@ -1,5 +1,5 @@
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import boto3
 import handler
@@ -145,16 +145,102 @@ class TestRecordHistory:
             "day_successes": {"website": 11.0},
             "budget_samples": {},
         }
-        handler.record_history(tbl, mani, None, read, now, today)
+        handler.record_history(tbl, mani, None, read, now, today, {})
         day = today.isoformat()
         assert store.rollups(tbl, "website", day, day)[0]["samples"] == 12
         assert store.rollups(tbl, "api", day, day) == []
+
+    def test_a_walk_inside_an_open_outage_opens_no_second_record(self, aws):
+        """The walk resumes behind its watermark, so it re-reads samples an
+        earlier run already judged. An outage longer than that lookback is
+        re-read from inside itself, where the series carries no edge to
+        stamp — and stamping one anyway writes a second record for the
+        outage already open, which then counts its own overlap twice.
+
+        The open record is what says the check was down. The snapshot's
+        `up` comes from the instant query rather than from this walk, so it
+        is the one thing here that can disagree with the record.
+        """
+        tbl = store.table(TABLE)
+        mani = handler.manifest()
+        now = datetime.now(UTC)
+        today = state.site_today(now, mani["site"]["timezone"])
+        started_at = state.iso(now - timedelta(minutes=90))
+        store.open_period(tbl, store.OUTAGE, "api", started_at, 1)
+
+        # Every sample failing, and a snapshot that still reads up.
+        begin = now.timestamp() - 40 * 60
+        read = {
+            "down_samples": {"api": [(begin + i * 300, 0.0, 1.0) for i in range(9)]},
+            "day_samples": {},
+            "day_successes": {},
+            "budget_samples": {},
+        }
+        previous = {"checks": {"api": {"up": True}}}
+
+        opens = handler.open_periods(tbl, mani)
+        handler.record_history(tbl, mani, previous, read, now, today, opens)
+
+        records = store.periods(tbl, store.OUTAGE, "api")
+        assert [r["started_at"] for r in records] == [started_at]
 
     def test_the_rollup_day_is_the_sites_not_utc(self):
         """22:30 UTC is already tomorrow in Amsterdam, and the bar the
         sample lands in has to agree with the clock on the page."""
         moment = datetime(2026, 8, 17, 22, 30, tzinfo=UTC)
         assert state.site_today(moment, "Europe/Amsterdam").isoformat() == "2026-08-18"
+
+
+class TestSeriesStart:
+    """How far back a run reads. The lookback is sized to fill the verdict
+    window, which is not the same as reaching the edge of a run — an outage
+    outlasts it, and then the walk begins inside one."""
+
+    @staticmethod
+    def mani():
+        return handler.manifest()
+
+    def test_it_resumes_behind_the_watermark(self):
+        previous = {"processed_through": "2026-08-14T12:00:00Z"}
+        now = datetime(2026, 8, 14, 12, 5, tzinfo=UTC)
+        assert handler.series_start(self.mani(), previous, now, {}) == datetime(
+            2026, 8, 14, 11, 20, tzinfo=UTC
+        )
+
+    def test_it_reaches_back_to_the_period_still_open(self):
+        """A close is stamped at the first good sample the walk can see, so
+        a walk that starts after the recovery reports the outage running
+        longer than it did."""
+        previous = {"processed_through": "2026-08-14T12:00:00Z"}
+        now = datetime(2026, 8, 14, 12, 5, tzinfo=UTC)
+        opens = {(store.OUTAGE, "api"): "2026-08-14T09:00:00Z"}
+        assert handler.series_start(self.mani(), previous, now, opens) == datetime(
+            2026, 8, 14, 9, 0, tzinfo=UTC
+        )
+
+    def test_a_recent_open_period_does_not_shorten_the_lookback(self):
+        previous = {"processed_through": "2026-08-14T12:00:00Z"}
+        now = datetime(2026, 8, 14, 12, 5, tzinfo=UTC)
+        opens = {(store.OUTAGE, "api"): "2026-08-14T11:55:00Z"}
+        assert handler.series_start(self.mani(), previous, now, opens) == datetime(
+            2026, 8, 14, 11, 20, tzinfo=UTC
+        )
+
+    def test_nothing_reaches_past_the_horizon(self):
+        """Prometheus keeps a fortnight; a period older than that is not
+        walkable however long it has been open."""
+        previous = {"processed_through": "2026-08-14T12:00:00Z"}
+        now = datetime(2026, 8, 14, 12, 5, tzinfo=UTC)
+        opens = {(store.OUTAGE, "api"): "2025-01-01T00:00:00Z"}
+        assert handler.series_start(self.mani(), previous, now, opens) == now - timedelta(
+            days=handler.SERIES_HORIZON_DAYS
+        )
+
+    def test_a_first_run_starts_at_the_horizon(self):
+        now = datetime(2026, 8, 14, 12, 5, tzinfo=UTC)
+        assert handler.series_start(self.mani(), None, now, {}) == now - timedelta(
+            days=handler.SERIES_HORIZON_DAYS
+        )
 
 
 class TestDegraded:
