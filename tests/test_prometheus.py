@@ -55,6 +55,27 @@ class TestParseMatrix:
             prometheus.parse_matrix(response)
 
 
+class TestDurationQuery:
+    """The most recent reading, over the window the verdict beside it was
+    made over — so the latency a row prints and the state it prints describe
+    the same stretch of time. A fixed window is a guess about how often the
+    probe runs, and a check slower than the guess shows no latency at all."""
+
+    def test_it_matches_its_pinned_literal(self):
+        assert prometheus.duration_query(["website", "api"], 5, 3) == (
+            'avg by (job) (last_over_time(probe_duration_seconds{job=~"^(api|website)$"}[15m]))'
+        )
+
+    def test_the_window_follows_the_probe_interval(self):
+        assert "[30m]" in prometheus.duration_query(["dns"], 10, 3)
+        assert "[180m]" in prometheus.duration_query(["dns"], 60, 3)
+
+    def test_it_asks_only_about_the_jobs_it_was_given(self):
+        """Unselected, it reads every probe in the account — including
+        checks that belong to no page this renderer speaks for."""
+        assert 'job=~"^(dns)$"' in prometheus.duration_query(["dns"], 10, 3)
+
+
 class TestRangeGrid:
     """query_range places its samples at start + k*step, so a start that
     moves between runs moves every sample with it. A period is keyed by the

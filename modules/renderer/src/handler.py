@@ -140,6 +140,17 @@ def query_metrics(mani: dict, now: datetime, today: date, since: datetime) -> tu
                         frequency * 60,
                     )
                 )
+                # Inside the loop because its window is the group's own: a
+                # reading is looked for over the same span the verdict was
+                # made over, and a fixed one would be a guess about how
+                # often these probes run.
+                read["duration"].update(
+                    prometheus.instant(
+                        source,
+                        prometheus.duration_query(jobs, frequency, page["down_window_multiple"]),
+                        now,
+                    )
+                )
                 samples_query, successes_query = prometheus.day_totals_queries(jobs, elapsed)
                 read["day_samples"].update(prometheus.instant(source, samples_query, now))
                 read["day_successes"].update(prometheus.instant(source, successes_query, now))
@@ -153,7 +164,6 @@ def query_metrics(mani: dict, now: datetime, today: date, since: datetime) -> tu
                         frequency * 60,
                     )
                 )
-            read["duration"].update(prometheus.instant(source, prometheus.INSTANT_DURATION, now))
             read["duration_range"].update(prometheus.latency_range(source, now))
         return read, False
     except prometheus.PrometheusError as error:

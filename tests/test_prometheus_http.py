@@ -27,7 +27,9 @@ class TestHTTP:
     def test_instant_queries_parse_to_job_maps(self, server):
         success = prometheus.instant(credentials(server), UP, NOW)
         assert success["website"] == 1.0
-        duration = prometheus.instant(credentials(server), prometheus.INSTANT_DURATION, NOW)
+        duration = prometheus.instant(
+            credentials(server), prometheus.duration_query(["website"], 5, 3), NOW
+        )
         assert duration["website"] > 0
 
     def test_range_query_parses_to_series(self, server):

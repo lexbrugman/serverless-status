@@ -13,14 +13,9 @@ import urllib.parse
 import urllib.request
 from datetime import UTC, datetime, timedelta
 
-# The lookback window for the latency reading, which wants the most recent
-# value rather than a verdict over time.
-WINDOW = "15m"
-
-# Averaged across probe locations, matching the range query below it: one
+# Averaged across probe locations, matching the instant query beside it: one
 # location's reading is not the page's subject, and the instant number and
 # the sparkline are the same quantity at two resolutions.
-INSTANT_DURATION = f"avg by (job) (last_over_time(probe_duration_seconds[{WINDOW}]))"
 RANGE_DURATION = "avg by (job) (probe_duration_seconds)"
 RANGE_STEP_SECONDS = 900
 RANGE_HOURS = 24
@@ -58,6 +53,22 @@ def up_query(jobs: list[str], frequency_minutes: int, window_multiple: int, quor
     )
     enough = f"sum by (job) (count_over_time({selector}[{window}m])) >= {min_samples}"
     return f"({ratio} >= bool {quorum}) and ({enough})"
+
+
+def duration_query(jobs: list[str], frequency_minutes: int, window_multiple: int) -> str:
+    """The most recent latency reading per job.
+
+    The last value rather than a verdict over time — but read over the same
+    window the verdict beside it was made over, so the number a row prints
+    and the state it prints describe one stretch of time. A fixed window
+    would be a guess about how often the probe runs, and a check slower than
+    the guess has nothing in it: the page would show no latency at all, and
+    nothing would say why.
+    """
+    return (
+        "avg by (job) (last_over_time("
+        f"probe_duration_seconds{_selector(jobs)}[{frequency_minutes * window_multiple}m]))"
+    )
 
 
 class PrometheusError(Exception):
