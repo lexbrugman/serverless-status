@@ -104,7 +104,12 @@ module "alerting_example" {
   ]
   reporting_jobs = [
     for key, check in module.checks_example.check_manifest.checks :
-    { key = key, display = check.display, target = check.target }
+    {
+      key               = key
+      display           = check.display
+      target            = check.target
+      frequency_minutes = check.frequency_minutes
+    }
   ]
   page_url             = "https://${local.config.domain}"
   prometheus           = module.checks_example.prometheus

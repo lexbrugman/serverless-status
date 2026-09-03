@@ -7,11 +7,12 @@ variable "down_jobs" {
 }
 
 variable "reporting_jobs" {
-  description = "Every check the renderer reports on, including those that opted out of down-alerting. Opting out says a failure of the thing is not worth a page; it does not say a failure of the monitoring is, and a check nobody is running is the second. The display name and target travel with the key because Grafana knows only the job label, and a notification naming a slug tells its reader less than the page they would have to open anyway."
+  description = "Every check the renderer reports on, including those that opted out of down-alerting. Opting out says a failure of the thing is not worth a page; it does not say a failure of the monitoring is, and a check nobody is running is the second. The display name and target travel with the key because Grafana knows only the job label, and a notification naming a slug tells its reader less than the page they would have to open anyway. The interval travels with it because a check reports as unobserved until it has a verdict's worth of samples, and how long that takes is the check's own fact."
   type = list(object({
-    key     = string
-    display = string
-    target  = string
+    key               = string
+    display           = string
+    target            = string
+    frequency_minutes = number
   }))
 
   validation {

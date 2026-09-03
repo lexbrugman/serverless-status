@@ -68,9 +68,12 @@ locals {
   # rather than a weekly one.
   heartbeat_stale_seconds = 600
 
-  # Long enough that the slowest check's own interval cannot look like
-  # silence, short enough to matter the same day.
-  unreported_for = "30m"
+  # A check reports as unobserved until it has a verdict's worth of samples,
+  # so the slowest one sets how long "merely new" lasts. Waiting less than
+  # that pages for a check that was only just added, or has just resumed
+  # after a gap — and how long it lasts is a fact about the check rather
+  # than a number to pick.
+  unreported_for = "${max([for job in var.reporting_jobs : job.frequency_minutes]...) * var.down_window_multiple}m"
 }
 
 # Emptiness is caught here rather than on the variables: a disabled module

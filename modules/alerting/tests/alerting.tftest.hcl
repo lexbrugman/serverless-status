@@ -13,9 +13,9 @@ variables {
   ]
   # One more than the down list: gw-example-com-ping said alert: false.
   reporting_jobs = [
-    { key = "api-example-com-https", display = "API", target = "api.example.com/health" },
-    { key = "mx1-example-com-smtp", display = "Inbound mail", target = "mx1.example.com" },
-    { key = "gw-example-com-ping", display = "Uplink", target = "gw.example.com" },
+    { key = "api-example-com-https", display = "API", target = "api.example.com/health", frequency_minutes = 5 },
+    { key = "mx1-example-com-smtp", display = "Inbound mail", target = "mx1.example.com", frequency_minutes = 5 },
+    { key = "gw-example-com-ping", display = "Uplink", target = "gw.example.com", frequency_minutes = 10 },
   ]
   page_url             = "https://status.example.com"
   email_addresses      = ["ops@example.com"]
@@ -111,6 +111,35 @@ run "silence_and_a_dead_renderer_each_have_their_own_rule" {
   assert {
     condition     = grafana_rule_group.down.rule[1].no_data_state == "Alerting"
     error_message = "no heartbeat at all is exactly the failure the heartbeat rule exists for"
+  }
+}
+
+# A check reports as unobserved until it has a verdict's worth of samples,
+# which is its own interval times the window. A wait shorter than that pages
+# for a check that is merely new, and how long "merely new" lasts is a fact
+# about the check rather than a number to pick.
+run "the_silence_wait_follows_the_slowest_check" {
+  command = plan
+
+  assert {
+    condition     = grafana_rule_group.down.rule[2].for == "30m"
+    error_message = "the wait must be the slowest reporting check's interval times the window"
+  }
+}
+
+run "a_slower_check_widens_the_silence_wait" {
+  command = plan
+
+  variables {
+    reporting_jobs = [
+      { key = "api-example-com-https", display = "API", target = "api.example.com/health", frequency_minutes = 5 },
+      { key = "quarterly-example-com-https", display = "Batch", target = "batch.example.com", frequency_minutes = 60 },
+    ]
+  }
+
+  assert {
+    condition     = grafana_rule_group.down.rule[2].for == "180m"
+    error_message = "a check that reports hourly must not be paged about after thirty minutes"
   }
 }
 
