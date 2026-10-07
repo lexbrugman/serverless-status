@@ -31,7 +31,7 @@ jobs:
         run: scripts/preview.py --out rendered
 
       - name: Upload rendered pages
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: rendered-pages
           path: rendered/
